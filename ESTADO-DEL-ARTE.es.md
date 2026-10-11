@@ -90,8 +90,8 @@ pronto:
 |---|---|---|---|---|
 | **opencode 1.18.11** | `~/.config/opencode/agents`, `.opencode/agents`. **No** lee `.agents/agents` | propia + `~/.claude/skills` + `~/.agents/skills` + `skill/` (legacy) + `.agents/skills` | `permission` (documentado) | Con la misma skill en varias carpetas **elige una copia distinta en cada corrida** (32, 10 y 4 de 48 del proyecto en tres corridas idénticas) |
 | **Codex 0.144.5** | TOML en `~/.codex/agents`, `.codex/agents` | `~/.codex/skills`; `~/.agents/skills` (documentado) | `sandbox_mode = "read-only"` | El flag `--sandbox` pisa el modo de cada agente; `-c sandbox_mode=...` y `config.toml` no. `codex exec` espera stdin si no se cierra |
-| **Antigravity (agy 1.3.3)** | `~/.gemini/config/agents`, `.agents/agents` | `~/.gemini/config/skills`, `.agents/skills` | allowlist `tools:` | La doc da `~/.gemini/antigravity-cli/skills/` para el CLI y **no se lee**. Sin `tools:` el agente recibe un set mínimo (sin escribir ni buscar). Un nombre de herramienta desconocido aborta el arranque. `--agent` con un nombre inexistente sigue con el agente principal sin avisar |
-| Claude Code | `~/.claude/agents`, `.claude/agents` | `~/.claude/skills`, `.claude/skills` | allowlist `tools:` | Probado a diario por el harness de comportamiento; no relevado acá |
+| **Antigravity (agy 1.3.3)** | `~/.gemini/config/agents`, `.agents/agents`; con el mismo nombre **gana el del proyecto** | `~/.gemini/config/skills`, `.agents/skills` | allowlist `tools:` | La doc da `~/.gemini/antigravity-cli/skills/` para el CLI y **no se lee**. Sin `tools:` el agente recibe un set mínimo (sin escribir ni buscar). Un nombre de herramienta desconocido aborta el arranque. Un agente sin frontmatter se ignora: `--agent` usa el global de ese nombre si existe, o el agente principal, sin avisar |
+| **Claude Code 2.1.296** | `~/.claude/agents`, `.claude/agents` | `~/.claude/skills`, `.claude/skills`. **No** lee `~/.agents/skills` ni `.agents/skills` | allowlist `tools:` | Se puede medir gratis: el evento `init` de `claude -p --output-format stream-json --verbose` lista las skills cargadas antes de consultar al modelo. El comportamiento de los agentes lo prueba el harness |
 | Kiro | — | — | — | Sin medir: no está instalado |
 
 Cómo se midió cada cosa, y cómo repetirlo, está en los comentarios de
@@ -137,6 +137,8 @@ Cómo se midió cada cosa, y cómo repetirlo, está en los comentarios de
 | Codex: agentes TOML con `sandbox_mode`, retira la instalación vieja con roster | `6d64076` |
 | Aviso de copias viejas que un host puede cargar (`shadowing`) y `--refresh` | `a64736f` |
 | Antigravity: skills globales en `~/.gemini/config/skills` | `1b2dde0` |
+| Medido: Claude Code no lee `~/.agents/skills` ni `.agents/skills` (el aviso de `shadowing` no cambia) | este documento |
+| Medido: en agy gana el agente del proyecto; uno sin frontmatter se ignora y usa el global | este documento |
 | Antigravity: `tools:` por tier medido, `agy-contract` en CI | `1422602`, `9a1e131` |
 | `shared` y `antigravity` no se mezclan en un mismo proyecto | `ee89899` |
 
@@ -146,8 +148,6 @@ Cómo se midió cada cosa, y cómo repetirlo, está en los comentarios de
 |---|---|---|
 | P1 | Rutina de re-medición por host, empezando por las pruebas sin costo | Lo medido envejece con cada versión (consideración 3) |
 | P1 | El registro de instalación marca `dirty tree` por archivos sin commitear que no son agentes ni skills | Falso aviso en `--status` |
-| P2 | Medir si Claude Code lee `~/.agents/skills` | Si lo hace, entra en el aviso de `shadowing` |
-| P2 | Medir qué gana en agy entre un agente global y uno del proyecto con el mismo nombre | Sin medir |
 | P2 | Medir Kiro | No está instalado; todo lo que dice el catálogo sale de la doc |
 | P3 | Leer la especificación de Agent Plugins y evaluar publicar las skills como plugin | Hoy solo hay una fuente secundaria (consideración 6) |
 | P3 | Harness de comportamiento para más hosts que Claude Code | La regla 17 hoy solo se prueba en Claude Code |

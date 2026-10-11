@@ -155,9 +155,10 @@ def refuse_shared_project_dir(tool: Tool, agents: dict):
     """Per project, `shared` and `antigravity` both live in `.agents/` and write
     the SAME agent paths in different formats, so the second install would
     replace the first's files. Measured on agy 1.3.3: a body without
-    frontmatter is not loaded as an agent, and `--agent NAME` then falls back
-    to agy's main agent without a word. Refuse the mix instead of picking a
-    winner silently. Call only for project installs: globally the two tools
+    frontmatter is not loaded as an agent, so `--agent NAME` silently gets the
+    global agent of that name if there is one, else agy's main agent — either
+    way not the project's. Refuse the mix instead of picking a winner
+    silently. Call only for project installs: globally the two tools
     use different directories."""
     other = shared_dir_owner(tool, agents)
     if other:

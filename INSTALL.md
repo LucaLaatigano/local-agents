@@ -152,8 +152,10 @@ for the CLI but agy 1.3.3 does not read (measured). Per project both go under
 `.agents/`. That is the same
 directory `--tool shared --project` writes to, and the two write the same agent
 paths in different formats: Antigravity needs frontmatter, the shared bodies
-have none. Antigravity does not load a body without frontmatter as an agent,
-and `--agent NAME` then falls back to its main agent without an error. So the
+have none. Antigravity does not load a body without frontmatter as an agent:
+`--agent NAME` silently gets the global agent of that name if you have one, or
+its main agent if you don't — never the project's (measured on agy 1.3.3; a
+valid project agent does win over a global one). So the
 installer **refuses to mix them in one project**: use one of the two per repo.
 Globally there is no clash — `~/.agents` and Antigravity's directories are
 separate, and Antigravity does not read `~/.agents` at all.
