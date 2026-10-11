@@ -1,8 +1,8 @@
 # How to use `install.py`
 
 Installer to copy an agent (with its skills) or individual skills into a tool's
-**global** configuration (Claude Code, opencode, Kiro CLI, Codex, Gemini /
-Antigravity CLI, or the shared `~/.agents` directory).
+**global** configuration (Claude Code, opencode, Kiro CLI, Codex, Antigravity
+CLI, or the shared `~/.agents` directory).
 
 Automates "Pattern B" from [INTEGRATION.md](INTEGRATION.md): instead of the tool's
 config REFERENCING the catalog, it COPIES the agent + skills into the tool's own
@@ -91,14 +91,13 @@ overwrite / rename / skip.
 
 ## Non-standard paths (multi-account, containers, CI)
 
-Three of the six tools publish an environment variable to override their config
+Two of the six tools publish an environment variable to override their config
 directory, and the installer honors them:
 
 | Tool | Variable | Default |
 |---|---|---|
 | Claude Code | `CLAUDE_CONFIG_DIR` | `~/.claude` |
 | Codex | `CODEX_HOME` | `~/.codex` |
-| Gemini / Antigravity CLI | `GEMINI_CONFIG_DIR` / `GEMINI_HOME` | `~/.gemini/antigravity-cli` |
 
 ```bash
 CLAUDE_CONFIG_DIR=~/.claude-work ./install.py --all --tool claude
@@ -108,10 +107,10 @@ Useful for the common multi-account scenario (personal and work) as well as
 containers or CI where `HOME` differs. `--status` honors the same variables, so
 it reports the directory currently in use.
 
-The other three do **not** have overrides, by design: opencode documents a literal
+The other four do **not** have overrides, by design: opencode documents a literal
 `~/.config/opencode` and **does not read `XDG_CONFIG_HOME`** (do not "fix" it to
-read it, that breaks); Kiro publishes no variable; and `~/.agents` is a convention
-of this catalog.
+read it, that breaks); Kiro and Antigravity publish no variable; and `~/.agents`
+is a convention of this catalog.
 
 ---
 
@@ -134,11 +133,17 @@ Where each tool lands:
 | opencode | `~/.config/opencode/` | `.opencode/agents/` and `.opencode/skills/` |
 | Kiro CLI | `~/.kiro/` | `.kiro/agents/` and `.kiro/skills/` |
 | Codex | `~/.codex/` | `.codex/` **+ the roster in the root `AGENTS.md`** |
-| Gemini / Antigravity CLI | `~/.gemini/antigravity-cli/` | `.gemini/` **+ the roster in the root `AGENTS.md`** |
+| Antigravity CLI | `~/.gemini/antigravity-cli/skills/` + `~/.gemini/config/agents/` | `.agents/agents/` and `.agents/skills/` |
 
 Codex is the special case: per-project it reads `AGENTS.md` from the repository
 root, not inside `.codex/`. The roster is written there between markers — anything
 the team already has in that file is preserved.
+
+Antigravity splits the other way: globally, skills live under the CLI's own
+`~/.gemini/antigravity-cli/` while subagents live in `~/.gemini/config/agents/`,
+shared with the IDE; per project both go under `.agents/`. That is the same
+directory `--tool shared --project` writes to, so installing both into one repo
+puts the same bodies in one place.
 
 **Project configuration overrides global** if they share a name, so a repo can
 have its own version of an agent without affecting your personal setup.
@@ -164,8 +169,10 @@ The installed copy is not identical to the catalog file; two differences are del
 3. **Access tier translates to what the host can enforce.** Each agent declares
    `access: read` (consultative: reads, searches, delegates; never edits or runs)
    or `access: full`. In Claude Code that is a `tools:` allowlist; in opencode,
-   `permission`; in Kiro, `tools` tags; in Codex and Gemini, a lead note in the
-   header because the host has no tool-level enforcement. What no host can express
+   `permission`; in Kiro, `tools` tags; in Antigravity, a `tools:` allowlist per
+   tier (written for `full` too, because an agent without one gets almost no
+   tools); in Codex, a lead note in the header because the
+   host has no tool-level enforcement. What no host can express
    by tool name remains a behavioral prompt promise guarded by the harness.
 
 The second point arose from a real trace: an agent searched for its own skills,
@@ -262,7 +269,7 @@ What each label means:
 | `stale` | Installed but **differs** from the catalog — needs reinstallation |
 | `missing` | Present in catalog but missing from tool |
 | `foreign (untouched)` | User-created, outside catalog. The installer never touches it |
-| `roster: N rows` | Codex, Gemini, shared: rows in `AGENTS.md`. Warns if count differs from bodies |
+| `roster: N rows` | Codex, shared: rows in `AGENTS.md`. Warns if count differs from bodies |
 
 `stale` is computed by **content**, not timestamps: skills and agents are
 re-rendered through the exact installation pipeline and compared with disk,
@@ -346,10 +353,10 @@ In interactive mode, a collision prompts you to choose overwrite, rename, or ski
 | opencode (`opencode`) | `~/.config/opencode/agents/{name}.md` | `~/.config/opencode/skills/{name}/` |
 | Kiro CLI (`kiro`) | `~/.kiro/agents/{name}.json` | `~/.kiro/skills/{name}/` |
 | Codex (`codex`) | `~/.codex/agents/{name}.md` + roster in `~/.codex/AGENTS.md` | `~/.codex/skills/{name}/` |
-| Gemini / Antigravity CLI (`gemini`) | `~/.gemini/antigravity-cli/agents/{name}.md` + roster in `~/.gemini/antigravity-cli/AGENTS.md` | `~/.gemini/antigravity-cli/skills/{name}/` |
+| Antigravity CLI (`antigravity`) | `~/.gemini/config/agents/{name}.md` | `~/.gemini/antigravity-cli/skills/{name}/` |
 | Shared (`shared`) | `~/.agents/agents/{name}.md` + roster in `~/.agents/AGENTS.md` | `~/.agents/skills/{name}/` (read by opencode + Codex) |
 
-**Note on Codex and Gemini:** Neither uses named subagent slots like Claude Code,
+**Note on Codex:** It has no named subagent slots like Claude Code,
 so the script addresses this in two parts: it copies the bodies into `agents/{name}.md`
 and writes a **roster** (a one-line summary table per agent) into `AGENTS.md`, which
 the host loads automatically. The model consults the roster and opens the relevant
@@ -395,5 +402,5 @@ Tool("mytool", "My Tool",
 ```
 
 This is sufficient **if the tool uses an existing format** (`claude_md`,
-`opencode_md`, `kiro_json`, `gemini_md`, `roster_md`). If it requires a NEW format,
+`opencode_md`, `kiro_json`, `antigravity_md`, `roster_md`). If it requires a NEW format,
 add a corresponding branch in `render_agent()`.

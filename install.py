@@ -44,30 +44,23 @@ HOME = Path.home()
 def env_dir(var: str, default: Path) -> Path:
     """Honour a tool's own config-dir override when it defines one.
 
-    Claude Code reads CLAUDE_CONFIG_DIR, Codex reads CODEX_HOME, and Gemini
-    reads GEMINI_CONFIG_DIR or GEMINI_HOME. opencode's docs prescribe a literal
+    Only two do: Claude Code reads CLAUDE_CONFIG_DIR (multi-account setups)
+    and Codex reads CODEX_HOME. opencode's docs prescribe a literal
     `~/.config/opencode` with no env override — it is NOT XDG-aware, so do not
-    "fix" it to use XDG_CONFIG_HOME. Kiro publishes no such variable."""
+    "fix" it to use XDG_CONFIG_HOME. Kiro and Antigravity publish no such
+    variable."""
     value = os.environ.get(var)
     return Path(value).expanduser() if value else default
 
 
-def gemini_root() -> Path:
-    val = os.environ.get("GEMINI_CONFIG_DIR") or os.environ.get("GEMINI_HOME")
-    if val:
-        return Path(val).expanduser()
-    agy_cli = HOME / ".gemini" / "antigravity-cli"
-    if agy_cli.exists():
-        return agy_cli
-    gemini_dir = HOME / ".gemini"
-    if gemini_dir.exists():
-        return gemini_dir
-    return agy_cli
-
-
 CLAUDE_ROOT = env_dir("CLAUDE_CONFIG_DIR", HOME / ".claude")
 CODEX_ROOT = env_dir("CODEX_HOME", HOME / ".codex")
-GEMINI_ROOT = gemini_root()
+# Antigravity CLI splits its global layout across two trees, per
+# antigravity.google/docs/skills and /docs/subagents: skills under the CLI's own
+# dir, subagents under the config dir it shares with the IDE. Per workspace both
+# live under `.agents/`.
+AGY_ROOT = HOME / ".gemini/antigravity-cli"
+AGY_AGENTS = HOME / ".gemini/config/agents"
 
 
 # --------------------------------------------------------------------------- #
@@ -75,7 +68,8 @@ GEMINI_ROOT = gemini_root()
 #
 # To add a tool: append one Tool(...) below. That's it — UNLESS the tool needs
 # a brand-new agent-file FORMAT, in which case also add a branch in
-# render_agent(). Existing styles: "claude_md", "opencode_md", "kiro_json".
+# render_agent(). Existing styles: "claude_md", "opencode_md", "kiro_json",
+# "antigravity_md".
 # A tool with agents_dir=None has no named-agent concept (installing an "agent"
 # there installs its skills and prints an AGENTS.md snippet to add by hand).
 # --------------------------------------------------------------------------- #
@@ -86,7 +80,7 @@ class Tool:
     config_root: Path            # existence of this dir => tool is installed
     skills_dir: Path
     agents_dir: Optional[Path]   # None => no place to put agent bodies at all
-    agent_style: Optional[str]   # "claude_md" | "opencode_md" | "kiro_json" | "roster_md" | "gemini_md"
+    agent_style: Optional[str]   # "claude_md" | "opencode_md" | "kiro_json" | "roster_md" | "antigravity_md"
     project_dir: str             # per-repo config dir, relative to the project root
     roster_file: Optional[Path] = None   # roster destination; defaults to config_root/AGENTS.md
 
@@ -113,9 +107,9 @@ TOOLS = [
     Tool("codex", "Codex",
          CODEX_ROOT, CODEX_ROOT / "skills",
          CODEX_ROOT / "agents", "roster_md", ".codex"),
-    Tool("gemini", "Gemini / Antigravity CLI",
-         GEMINI_ROOT, GEMINI_ROOT / "skills",
-         GEMINI_ROOT / "agents", "gemini_md", ".gemini"),
+    Tool("antigravity", "Antigravity CLI",
+         AGY_ROOT, AGY_ROOT / "skills",
+         AGY_AGENTS, "antigravity_md", ".agents"),
     Tool("shared", "Shared (~/.agents — read by opencode + Codex)",
          HOME / ".agents", HOME / ".agents/skills",
          HOME / ".agents/agents", "roster_md", ".agents"),
@@ -136,7 +130,7 @@ def project_tool(tool: Tool, root: Path) -> Tool:
         config_root=base,
         skills_dir=base / "skills",
         agents_dir=(base / "agents") if tool.agents_dir else None,
-        roster_file=(root / "AGENTS.md") if tool.agent_style in ("roster_md", "gemini_md") else None,
+        roster_file=(root / "AGENTS.md") if tool.agent_style == "roster_md" else None,
     )
 
 ROSTER_BEGIN = "<!-- BEGIN:local-agents -->"
@@ -281,6 +275,23 @@ def rewrite_skill_name(skill_md_text: str, new_name: str) -> str:
 ACCESS_TIERS = ("read", "full")
 CLAUDE_READ_TOOLS = "Read, Grep, Glob, WebFetch, WebSearch, Agent"
 KIRO_TOOLS = {"read": ["read"], "full": ["read", "write", "shell"]}
+# Antigravity needs `tools:` on EVERY agent, not only the read tier. Measured
+# against agy 1.3.3: with the field omitted a subagent gets a minimal default
+# (view_file, read_url_content, search_web, ...) — no grep, no write, no shell —
+# so a builder would silently lose the ability to build. Every name below was
+# accepted by agy's tool registry; an unknown one aborts the agent at startup
+# ("tool ... not found in registry"), which is why `search_in_file` and
+# `command_status` are absent although the binary mentions them.
+# `full` mirrors what agy's main agent exposes, plus the search tools.
+AGY_TOOLS = {
+    "read": ["view_file", "list_dir", "find_by_name", "grep_search",
+             "read_url_content", "search_web", "invoke_subagent"],
+    "full": ["view_file", "list_dir", "find_by_name", "grep_search",
+             "write_to_file", "replace_file_content", "multi_replace_file_content",
+             "run_command", "read_url_content", "search_web", "invoke_subagent",
+             "define_subagent", "manage_subagents", "manage_task", "send_message",
+             "schedule", "ask_question"],
+}
 
 
 def access_of(meta: dict) -> str:
@@ -345,11 +356,15 @@ def render_agent(tool: Tool, name: str, body: str, description: str,
                 f"agent catalog (`../AGENTS.md`). Load the skills it references "
                 f"when their triggers fire.\n\n---\n\n")
         return tool.agents_dir / f"{name}.md", head + body
-    if tool.agent_style == "gemini_md":
+    if tool.agent_style == "antigravity_md":
+        # `tools:` is an explicit allowlist and is always written (see
+        # AGY_TOOLS). Antigravity's own model aliases are `flash` / `pro`, so a
+        # catalog model name never maps — inherit.
         fm = ("---\n"
               f"name: {name}\n"
               f"{yaml_description(desc)}\n"
-              f"model: {meta.get('model', 'inherit')}\n"
+              "model: inherit\n"
+              f"tools: [{', '.join(AGY_TOOLS[tier])}]\n"
               "---\n\n")
         return tool.agents_dir / f"{name}.md", fm + body
     raise ValueError(f"Tool {tool.key} has no agent format")
@@ -491,8 +506,8 @@ def deref_skill_links(body: str) -> str:
     an agent searched for its own skills, failed, and answered "no pude leer los
     skills de mi catálogo — voy con criterio propio". It worked without them.
 
-    Rewriting to the tool's real layout was rejected in favour of this: five
-    targets have five layouts, and every host already discovers skills by NAME
+    Rewriting to the tool's real layout was rejected in favour of this: the
+    targets each have their own layout, and every host already discovers skills by NAME
     from their description. A name works everywhere; a path works in one place."""
     def sub(m):
         text, name = m.group(1), m.group(2)
@@ -527,7 +542,7 @@ def render_skill(text: str, owner: Optional[str], name: str) -> str:
 
     - `../x/SKILL.md` (sibling) already resolves installed — untouched.
     - `../../../agent/skills/x/SKILL.md` (cross-agent) becomes `../x/SKILL.md`:
-      installed, every skill is a sibling of every other, in all five layouts.
+      installed, every skill is a sibling of every other, in every layout.
       The label keeps naming the target so name-based discovery still works
       if a host renders the file without resolving links.
     - `../../AGENTS.md` / `../../../agent/AGENTS.md` become the agent's NAME:
@@ -632,7 +647,7 @@ def install_agent(agent: Agent, tool: Tool, policy: str, interactive: bool,
     # Tools with no named-agent concept only find the body through the roster,
     # so writing one without the other leaves a half-install. The suite path
     # passes roster=False and writes it once at the end instead.
-    if roster and tool.agent_style in ("roster_md", "gemini_md"):
+    if roster and tool.agent_style == "roster_md":
         write_roster(tool, agents, [final], dry_run)
 
 
@@ -814,8 +829,9 @@ def install_suite(tool: Tool, policy: str, interactive: bool, dry_run: bool,
                       agents, skills_by_name, with_deps=True, skip_skills=True,
                       roster=False)
 
-    if tool.agent_style in ("roster_md", "gemini_md"):
-        print(f"  — roster ({tool.label}) —")
+    if tool.agent_style == "roster_md":
+        print(f"  — roster ({tool.label} has no named-agent slot, so the bodies "
+              f"above are indexed by hand) —")
         write_roster(tool, agents, sorted(agents), dry_run)
 
     write_manifest(tool, catalog, dry_run)
@@ -958,7 +974,7 @@ def print_status(agents, skills_by_name, project=None, catalog=None):
             for line in provenance_line(tool, catalog, set(present) | set(a_present)):
                 print(f"    {line}")
 
-        if tool.agent_style in ("roster_md", "gemini_md"):
+        if tool.agent_style == "roster_md":
             roster = tool.roster
             if not roster.exists():
                 print("      roster: MISSING — the bodies above are unreachable "
@@ -999,7 +1015,7 @@ def main():
     ap.add_argument("--all", action="store_true", help="install the whole suite (all agents + skills)")
     ap.add_argument("--agent", action="append", default=[], help="agent name to install (repeatable)")
     ap.add_argument("--skill", action="append", default=[], help="skill as agent:skill or name (repeatable)")
-    ap.add_argument("--tool", help="target tool key (claude, opencode, kiro, codex, shared)")
+    ap.add_argument("--tool", help=f"target tool key ({', '.join(TOOLS_BY_KEY)})")
     ap.add_argument("--on-conflict", choices=["ask", "overwrite", "rename", "skip"], default="ask")
     ap.add_argument("--dry-run", action="store_true", help="show what would happen, change nothing")
     ap.add_argument("--no-deps", action="store_true",

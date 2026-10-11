@@ -148,7 +148,7 @@ def frontmatter(text: str):
 def check_links(cat: Catalog):
     errs = []
     files = ["AGENTS.md", "README.md", "GRAPH.md", "INSTALL.md", "USAGE.md",
-             "INTEGRATION.md", "REFERENCE_.md"]
+             "INTEGRATION.md", "REFERENCE.es.md"]
     files += [f"{a}/AGENTS.md" for a in cat.agents]
     files += [str(p.relative_to(cat.root)) for _a, p, _t in cat.skills.values()]
     for rel in files:
@@ -209,8 +209,8 @@ def check_skill_names(cat: Catalog):
 
 
 def check_harness_paths(cat: Catalog):
-    """The catalog installs into five tools with five layouts — a hardcoded
-    path to one of them is wrong in the other four."""
+    """The catalog installs into several tools, each with its own layout — a hardcoded
+    path to one of them is wrong in all the others."""
     errs = []
     targets = [(f"{a}/AGENTS.md", t) for a, t in cat.agents.items()]
     targets += [(str(p.relative_to(cat.root)), t) for _a, p, t in cat.skills.values()]
@@ -468,18 +468,18 @@ def check_reference_roster(cat: Catalog):
     can't be derived (the criollo one-liner) and this check keeps the roster
     honest: the deep content lives in the agent files, where it maintains
     itself."""
-    text = (cat.root / "REFERENCE_.md").read_text(encoding="utf-8")
+    text = (cat.root / "REFERENCE.es.md").read_text(encoding="utf-8")
     rows = {m[0]: int(m[1]) for m in
             re.findall(r"\[`([a-z-]+)`\]\([a-z-]+/AGENTS\.md\).*?\|\s*(\d+)\s*\|", text)}
     errs = []
     for name in sorted(cat.agents):
         real = sum(1 for a, _p, _t in cat.skills.values() if a == name)
         if name not in rows:
-            errs.append(f"REFERENCE_.md: agent `{name}` missing from the roster table")
+            errs.append(f"REFERENCE.es.md: agent `{name}` missing from the roster table")
         elif rows[name] != real:
-            errs.append(f"REFERENCE_.md: `{name}` claims {rows[name]} skills, has {real}")
+            errs.append(f"REFERENCE.es.md: `{name}` claims {rows[name]} skills, has {real}")
     for extra in sorted(set(rows) - set(cat.agents)):
-        errs.append(f"REFERENCE_.md: roster lists `{extra}`, which is not an agent")
+        errs.append(f"REFERENCE.es.md: roster lists `{extra}`, which is not an agent")
     return errs
 
 
@@ -505,10 +505,10 @@ def check_installer(cat: Catalog):
     written passes it — the real install into a throwaway HOME is what catches
     that."""
     errs = []
-    tools = ("claude", "opencode", "kiro", "codex", "gemini", "shared")
+    tools = ("claude", "opencode", "kiro", "codex", "antigravity", "shared")
     with tempfile.TemporaryDirectory() as home:
         env = {k: v for k, v in os.environ.items()
-               if k not in ("CLAUDE_CONFIG_DIR", "CODEX_HOME", "GEMINI_CONFIG_DIR", "GEMINI_HOME")}
+               if k not in ("CLAUDE_CONFIG_DIR", "CODEX_HOME")}
         env.update(HOME=home, USERPROFILE=home)
         runs = ([["--list"]]
                 + [["--all", "--tool", t, "--dry-run"] for t in tools]
@@ -855,7 +855,7 @@ CHECKS = [
     ("access-policy", "rule 16 — every agent declares access: read | full", check_access_policy),
     ("kiro-contract", "Kiro agent JSON matches the recipe in USAGE.md", check_kiro_contract),
     ("readme-counts", "README roster matches reality", check_readme_counts),
-    ("reference-roster", "REFERENCE_.md lists every agent (Spanish guide)", check_reference_roster),
+    ("reference-roster", "REFERENCE.es.md lists every agent (Spanish guide)", check_reference_roster),
     ("installer", "install.py --list, --dry-run and a real install succeed", check_installer),
 ]
 

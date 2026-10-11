@@ -1,7 +1,7 @@
 # local-agents
 
 A catalog of **<!--n:agents-->15<!--/n--> specialized AI agents and <!--n:skills-->48<!--/n--> skills** for software development,
-installable into Claude Code, opencode, Kiro CLI, Codex, Gemini / Antigravity CLI, or any harness that can
+installable into Claude Code, opencode, Kiro CLI, Codex, Antigravity CLI, or any harness that can
 read files.
 
 Each agent is a self-contained package: an identity, a way of reasoning, and the
@@ -81,8 +81,8 @@ each one — progressive disclosure keeps the base context small.
 
 Referencing skills that ship *outside* this catalog (`react-19`, `playwright`,
 `tailwind-4`, …) is done **by name and conditionally** — never by path. The
-catalog installs into five tools with five different layouts, so a hardcoded
-`~/.claude/skills/...` would be a lie in four of them.
+catalog installs into several tools, each with its own layout, so a hardcoded
+`~/.claude/skills/...` would be a lie in all the others.
 
 ---
 
@@ -94,7 +94,7 @@ catalog installs into five tools with five different layouts, so a hardcoded
 | opencode | `~/.config/opencode/agents/{name}.md` | `~/.config/opencode/skills/{name}/` |
 | Kiro CLI | `~/.kiro/agents/{name}.json` | `~/.kiro/skills/{name}/` |
 | Codex | `~/.codex/agents/{name}.md` + roster in `~/.codex/AGENTS.md` | `~/.codex/skills/{name}/` |
-| Gemini / Antigravity CLI | `~/.gemini/antigravity-cli/agents/{name}.md` + roster in `~/.gemini/antigravity-cli/AGENTS.md` | `~/.gemini/antigravity-cli/skills/{name}/` |
+| Antigravity CLI | `~/.gemini/config/agents/{name}.md` | `~/.gemini/antigravity-cli/skills/{name}/` |
 | Shared | `~/.agents/agents/{name}.md` + roster in `~/.agents/AGENTS.md` | `~/.agents/skills/{name}/` (read by opencode + Codex) |
 
 Codex has no named-agent concept, so the installer writes the bodies plus a
@@ -106,7 +106,8 @@ from, so `--status` can report how far behind an installed copy is and which
 skills moved. Nothing is versioned by hand — git history is the changelog.
 
 Add `--project PATH` to install into a repo instead of your home config
-(`.claude/`, `.opencode/`, `.kiro/`, `.codex/`, `.gemini/` + the root `AGENTS.md`), so the
+(`.claude/`, `.opencode/`, `.kiro/`, `.codex/` + the root `AGENTS.md`, `.agents/`
+for Antigravity), so the
 setup travels with the code and works for teammates and CI. Commit what it
 writes — that is the point — and `--status --project` tells you whether the
 committed copy still matches the catalog.
@@ -127,7 +128,7 @@ You can also **reference** the catalog instead of copying it — see
 | [INSTALL.md](INSTALL.md) | `install.py` guide — flags, conflicts, dependencies |
 | [USAGE.md](USAGE.md) | Per-tool setup recipes, global and per-project |
 | [INTEGRATION.md](INTEGRATION.md) | Wiring agents into a config by reference, not by copy |
-| [REFERENCE_.md](REFERENCE_.md) | Quick human-facing orientation guide |
+| [REFERENCE.es.md](REFERENCE.es.md) | Quick human-facing orientation guide *(Spanish, never translated — rule 8)* |
 
 ---
 

@@ -1,7 +1,7 @@
 # Usage Guide: The Catalog in Each Tool
 
 How to use the catalog's agents in Claude Code, opencode, Kiro CLI, Codex,
-and Gemini / Antigravity CLI — globally (available everywhere) or per project.
+and Antigravity CLI — globally (available everywhere) or per project.
 General principles (reference, never copy) are documented in
 [INTEGRATION.md](INTEGRATION.md); these are concrete recipes per tool, verified
 against official documentation (July 2026).
@@ -19,7 +19,7 @@ against official documentation (July 2026).
 | opencode | Agents `.md` with frontmatter, or JSON | `~/.config/opencode/agents/` | `.opencode/agents/` | Yes: `{file:...}` in JSON prompt |
 | Kiro CLI | JSON agents | `~/.kiro/agents/` | `.kiro/agents/` | Yes, native: `"prompt": "file://..."` |
 | Codex | Hierarchical AGENTS.md + skills | `~/.codex/AGENTS.md` and `~/.codex/skills/` | `AGENTS.md` at repo root | AGENTS.md files concatenate automatically |
-| Gemini / Antigravity CLI | Subagents `.md` + hierarchical AGENTS.md + skills | `~/.gemini/antigravity-cli/` | `.gemini/` and `AGENTS.md` at root | Yes: `.md` subagents and on-demand reading |
+| Antigravity CLI | Subagents `.md` with frontmatter + skills | `~/.gemini/config/agents/` and `~/.gemini/antigravity-cli/skills/` | `.agents/agents/` and `.agents/skills/` | Via "Read X" instruction in body |
 
 Cross-cutting rule: **the agent requires read permission** to load its definition
 and skills on demand. Without `read`, you have a generic assistant with a nice name.
@@ -229,45 +229,61 @@ single set of symlinks serves all.
 
 ---
 
-## Gemini / Antigravity CLI
+## Antigravity CLI
 
-Antigravity CLI (`agy`) uses Gemini models (such as Gemini 3.8 Flash and 3.1 Pro)
-and provides native support for progressive discovery of Agent Skills and agents
-defined in Markdown with frontmatter.
+Antigravity CLI (`agy`) replaced Gemini CLI for the free tier and Google One
+accounts. It reads subagents as Markdown with YAML frontmatter and discovers
+Agent Skills on demand. Its global layout is split in two: subagents live in
+`~/.gemini/config/agents/` (shared with the Antigravity IDE) and skills in
+`~/.gemini/antigravity-cli/skills/`. Per project, both live under `.agents/`.
+Sources: antigravity.google/docs/subagents and /docs/skills.
 
-> If you want the full suite, `./install.py --all --tool gemini` does this
-> automatically: copies bodies to `~/.gemini/antigravity-cli/agents/`, skills to
-> `~/.gemini/antigravity-cli/skills/`, and writes the roster into
-> `~/.gemini/antigravity-cli/AGENTS.md`.
+> If you want the full suite, `./install.py --all --tool antigravity` does this
+> automatically: bodies to `~/.gemini/config/agents/`, skills to
+> `~/.gemini/antigravity-cli/skills/`. No roster: Antigravity has named
+> subagents, so every body is reachable on its own.
 
 ### Global (available in all projects)
 
-Create `~/.gemini/antigravity-cli/agents/architect.md`:
+Create `~/.gemini/config/agents/architect.md`:
 
 ```markdown
 ---
 name: architect
 description: Senior Architect mentor - guidance on architecture, tradeoffs, design reviews, and learning paths. Helpful first, challenging when it matters.
 model: inherit
+tools: [view_file, list_dir, find_by_name, grep_search, write_to_file, replace_file_content, multi_replace_file_content, run_command, read_url_content, search_web, invoke_subagent, define_subagent, manage_subagents, manage_task, send_message, schedule, ask_question]
 ---
 
-Read /Users/you/Developer/local-agents/architect/AGENTS.md and fully adopt it:
+Read ~/Developer/local-agents/architect/AGENTS.md and fully adopt it:
 identity, judgment model, and escalation ladder. It inherits
-/Users/you/Developer/local-agents/generalist/AGENTS.md — read that too.
+~/Developer/local-agents/generalist/AGENTS.md — read that too.
 Load the skills it references when their triggers fire.
 ```
 
+**Always declare `tools:`.** Omitted, Antigravity does not inherit the main
+agent's tools: the subagent gets a minimal default with no grep, no file writes
+and no shell (measured on agy 1.3.3). For an `access: read` agent (`visionary`,
+`eng-manager`), use the read-only allowlist instead, so the host enforces what
+the body promises:
+
+```yaml
+tools: [view_file, list_dir, find_by_name, grep_search, read_url_content, search_web, invoke_subagent]
+```
+
+Spell every name exactly: an unknown name aborts the agent at startup with
+`tool "..." not found in registry`.
+
 ### Per Project
 
-With `./install.py --all --tool gemini --project <repo>`, agents and skills are
-copied to `.gemini/` and the roster is written to `AGENTS.md` at repo root.
-Antigravity CLI automatically discovers the rules in `AGENTS.md` when working in
-the directory.
+With `./install.py --all --tool antigravity --project <repo>`, agents land in
+`.agents/agents/` and skills in `.agents/skills/` — the workspace paths
+Antigravity reads.
 
 ### Skills
 
 Catalog skills follow the `SKILL.md` specification (`name:` and `description:` in
-frontmatter). Antigravity CLI discovers them automatically and only loads the full
+frontmatter). Antigravity discovers them automatically and only loads the full
 content when the task requires it.
 
 ---

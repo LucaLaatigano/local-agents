@@ -60,9 +60,18 @@ Rules for this catalog:
    states only its register, in one line.
 7. To wire an agent into a tool config (opencode, SDK, etc.) see
    [INTEGRATION.md](INTEGRATION.md) — reference the file, never copy the prompt.
-8. Human-facing quick guide in Spanish: [REFERENCE_.md](REFERENCE_.md) — a
-   summary for fast orientation; the English files remain the source of truth.
-9. Tool-specific setup recipes (Claude Code, opencode, Kiro CLI, Codex), global
+8. **One plan, brochures on the side.** The English docs are the single
+   source of truth. A file named `*.es.md` — today only
+   [REFERENCE.es.md](REFERENCE.es.md), the human-facing quick guide — is a
+   brochure written natively in Spanish, holding only what can't be derived
+   from the English files. It is not a translation and must never become one:
+   do not translate a brochure into English, do not translate the English docs
+   into Spanish, and do not keep ES/EN twins of any doc. A second copy of the
+   plan has to be kept identical to the first by hand, and nothing can check
+   that it is. This applies to agents and LLMs editing the repo as much as to
+   people. Fix a stale brochure in its own language.
+9. Tool-specific setup recipes (Claude Code, opencode, Kiro CLI, Codex,
+   Antigravity CLI), global
    and per-project: [USAGE.md](USAGE.md).
 10. To COPY an agent/skills into a tool's global config automatically, use
    `install.py` — see [INSTALL.md](INSTALL.md) for the how-to.
@@ -73,7 +82,7 @@ Rules for this catalog:
       `../{agent}/AGENTS.md` belong here.
     - `## External skills` — *what ships outside this catalog?* Host-provided
       skills only, referenced **by name and conditionally** (never by path — the
-      catalog installs into five tools with five layouts). No agent links.
+      catalog installs into several tools, each with its own layout). No agent links.
     - `## Where you sit in the team` — *how do I differ from the agent next to
       me?* Disambiguation, for agents whose scope overlaps a neighbour's.
 
