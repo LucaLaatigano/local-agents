@@ -31,22 +31,53 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+# Ensure UTF-8 I/O across platforms (particularly on Windows)
+if sys.platform == "win32":
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
+_orig_read_text = Path.read_text
+def _utf8_read_text(self, encoding="utf-8", errors=None):
+    return _orig_read_text(self, encoding=encoding, errors=errors)
+Path.read_text = _utf8_read_text
+
+_orig_write_text = Path.write_text
+def _utf8_write_text(self, data, encoding="utf-8", errors=None, newline=None):
+    return _orig_write_text(self, data, encoding=encoding, errors=errors, newline=newline)
+Path.write_text = _utf8_write_text
+
 HOME = Path.home()
 
 
 def env_dir(var: str, default: Path) -> Path:
     """Honour a tool's own config-dir override when it defines one.
 
-    Only two of the five do: Claude Code reads CLAUDE_CONFIG_DIR (multi-account
-    setups) and Codex reads CODEX_HOME. opencode's docs prescribe a literal
+    Claude Code reads CLAUDE_CONFIG_DIR, Codex reads CODEX_HOME, and Gemini
+    reads GEMINI_CONFIG_DIR or GEMINI_HOME. opencode's docs prescribe a literal
     `~/.config/opencode` with no env override — it is NOT XDG-aware, so do not
     "fix" it to use XDG_CONFIG_HOME. Kiro publishes no such variable."""
     value = os.environ.get(var)
     return Path(value).expanduser() if value else default
 
 
+def gemini_root() -> Path:
+    val = os.environ.get("GEMINI_CONFIG_DIR") or os.environ.get("GEMINI_HOME")
+    if val:
+        return Path(val).expanduser()
+    agy_cli = HOME / ".gemini" / "antigravity-cli"
+    if agy_cli.exists():
+        return agy_cli
+    gemini_dir = HOME / ".gemini"
+    if gemini_dir.exists():
+        return gemini_dir
+    return agy_cli
+
+
 CLAUDE_ROOT = env_dir("CLAUDE_CONFIG_DIR", HOME / ".claude")
 CODEX_ROOT = env_dir("CODEX_HOME", HOME / ".codex")
+GEMINI_ROOT = gemini_root()
 
 
 # --------------------------------------------------------------------------- #
@@ -65,7 +96,7 @@ class Tool:
     config_root: Path            # existence of this dir => tool is installed
     skills_dir: Path
     agents_dir: Optional[Path]   # None => no place to put agent bodies at all
-    agent_style: Optional[str]   # "claude_md" | "opencode_md" | "kiro_json" | "roster_md"
+    agent_style: Optional[str]   # "claude_md" | "opencode_md" | "kiro_json" | "roster_md" | "gemini_md"
     project_dir: str             # per-repo config dir, relative to the project root
     roster_file: Optional[Path] = None   # roster destination; defaults to config_root/AGENTS.md
 
@@ -92,6 +123,9 @@ TOOLS = [
     Tool("codex", "Codex",
          CODEX_ROOT, CODEX_ROOT / "skills",
          CODEX_ROOT / "agents", "roster_md", ".codex"),
+    Tool("gemini", "Gemini / Antigravity CLI",
+         GEMINI_ROOT, GEMINI_ROOT / "skills",
+         GEMINI_ROOT / "agents", "gemini_md", ".gemini"),
     Tool("shared", "Shared (~/.agents — read by opencode + Codex)",
          HOME / ".agents", HOME / ".agents/skills",
          HOME / ".agents/agents", "roster_md", ".agents"),
@@ -112,7 +146,7 @@ def project_tool(tool: Tool, root: Path) -> Tool:
         config_root=base,
         skills_dir=base / "skills",
         agents_dir=(base / "agents") if tool.agents_dir else None,
-        roster_file=(root / "AGENTS.md") if tool.agent_style == "roster_md" else None,
+        roster_file=(root / "AGENTS.md") if tool.agent_style in ("roster_md", "gemini_md") else None,
     )
 
 ROSTER_BEGIN = "<!-- BEGIN:local-agents -->"
@@ -321,6 +355,13 @@ def render_agent(tool: Tool, name: str, body: str, description: str,
                 f"agent catalog (`../AGENTS.md`). Load the skills it references "
                 f"when their triggers fire.\n\n---\n\n")
         return tool.agents_dir / f"{name}.md", head + body
+    if tool.agent_style == "gemini_md":
+        fm = ("---\n"
+              f"name: {name}\n"
+              f"{yaml_description(desc)}\n"
+              f"model: {meta.get('model', 'inherit')}\n"
+              "---\n\n")
+        return tool.agents_dir / f"{name}.md", fm + body
     raise ValueError(f"Tool {tool.key} has no agent format")
 
 
@@ -601,7 +642,7 @@ def install_agent(agent: Agent, tool: Tool, policy: str, interactive: bool,
     # Tools with no named-agent concept only find the body through the roster,
     # so writing one without the other leaves a half-install. The suite path
     # passes roster=False and writes it once at the end instead.
-    if roster and tool.agent_style == "roster_md":
+    if roster and tool.agent_style in ("roster_md", "gemini_md"):
         write_roster(tool, agents, [final], dry_run)
 
 
@@ -783,9 +824,8 @@ def install_suite(tool: Tool, policy: str, interactive: bool, dry_run: bool,
                       agents, skills_by_name, with_deps=True, skip_skills=True,
                       roster=False)
 
-    if tool.agent_style == "roster_md":
-        print(f"  — roster ({tool.label} has no named-agent slot, so the bodies "
-              f"above are indexed by hand) —")
+    if tool.agent_style in ("roster_md", "gemini_md"):
+        print(f"  — roster ({tool.label}) —")
         write_roster(tool, agents, sorted(agents), dry_run)
 
     write_manifest(tool, catalog, dry_run)
@@ -928,7 +968,7 @@ def print_status(agents, skills_by_name, project=None, catalog=None):
             for line in provenance_line(tool, catalog, set(present) | set(a_present)):
                 print(f"    {line}")
 
-        if tool.agent_style == "roster_md":
+        if tool.agent_style in ("roster_md", "gemini_md"):
             roster = tool.roster
             if not roster.exists():
                 print("      roster: MISSING — the bodies above are unreachable "

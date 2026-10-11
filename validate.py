@@ -28,6 +28,23 @@ import subprocess
 import sys
 from pathlib import Path
 
+# Ensure UTF-8 I/O across platforms (particularly on Windows)
+if sys.platform == "win32":
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
+_orig_read_text = Path.read_text
+def _utf8_read_text(self, encoding="utf-8", errors=None):
+    return _orig_read_text(self, encoding=encoding, errors=errors)
+Path.read_text = _utf8_read_text
+
+_orig_write_text = Path.write_text
+def _utf8_write_text(self, data, encoding="utf-8", errors=None, newline=None):
+    return _orig_write_text(self, data, encoding=encoding, errors=errors, newline=newline)
+Path.write_text = _utf8_write_text
+
 try:
     import yaml
 except ImportError:
@@ -52,6 +69,7 @@ HARNESS_PATTERNS = [
     (r"~/\.config/opencode", "opencode config path"),
     (r"~/\.kiro", "Kiro config path"),
     (r"~/\.codex", "Codex config path"),
+    (r"~/\.gemini", "Gemini config path"),
     (r"`/[a-z][a-z-]*`", "harness slash command"),
 ]
 
@@ -494,7 +512,7 @@ def check_installer(cat: Catalog):
     """Smoke test: the installer must still discover and render everything."""
     errs = []
     runs = [["--list"]] + [["--all", "--tool", t, "--dry-run"]
-                           for t in ("claude", "opencode", "kiro", "codex", "shared")]
+                           for t in ("claude", "opencode", "kiro", "codex", "gemini", "shared")]
     for args in runs:
         proc = subprocess.run([sys.executable, str(cat.root / "install.py"), *args],
                               capture_output=True, text=True)
