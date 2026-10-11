@@ -1,36 +1,36 @@
-# Guía de uso: el catálogo en cada herramienta
+# Usage Guide: The Catalog in Each Tool
 
-Cómo usar los agentes del catálogo en Claude Code, opencode, Kiro CLI y Codex —
-de forma global (disponibles en todo lados) o por proyecto. Los principios
-generales (referenciar, nunca copiar) están en
-[INTEGRATION.md](INTEGRATION.md); esto son las recetas concretas por
-herramienta, verificadas contra la documentación oficial (julio 2026).
+How to use the catalog's agents in Claude Code, opencode, Kiro CLI, Codex,
+and Gemini / Antigravity CLI — globally (available everywhere) or per project.
+General principles (reference, never copy) are documented in
+[INTEGRATION.md](INTEGRATION.md); these are concrete recipes per tool, verified
+against official documentation (July 2026).
 
-> **Rutas en esta guía.** Los ejemplos usan `~/Developer/local-agents` (o
-> `/Users/you/Developer/local-agents` donde la herramienta exige ruta absoluta).
-> Reemplazalo por donde hayas clonado el catálogo. Las rutas absolutas a un home
-> no existen en la máquina de un compañero ni en CI — ver la última sección.
+> **Paths in this guide.** Examples use `~/Developer/local-agents` (or
+> `/Users/you/Developer/local-agents` where the tool requires an absolute path).
+> Replace it with wherever you cloned the catalog. Absolute paths to a user home
+> directory do not exist on a teammate's machine or in CI — see the final section.
 
-## Resumen: el mecanismo de cada herramienta
+## Summary: Tool Mechanisms
 
-| Herramienta | Mecanismo | Global | Por proyecto | ¿Referencia archivos? |
+| Tool | Mechanism | Global | Per Project | References Files? |
 |---|---|---|---|---|
-| Claude Code | Subagentes `.md` con frontmatter | `~/.claude/agents/` | `.claude/agents/` | Vía instrucción "Read X" en el body |
-| opencode | Agentes `.md` con frontmatter, o JSON | `~/.config/opencode/agents/` | `.opencode/agents/` | Sí: `{file:...}` en el prompt del JSON |
-| Kiro CLI | Agentes JSON | `~/.kiro/agents/` | `.kiro/agents/` | Sí, nativo: `"prompt": "file://..."` |
-| Codex | AGENTS.md jerárquico + skills | `~/.codex/AGENTS.md` y `~/.codex/skills/` | `AGENTS.md` en la raíz del repo | Los AGENTS.md se concatenan solos |
+| Claude Code | Subagents `.md` with frontmatter | `~/.claude/agents/` | `.claude/agents/` | Via "Read X" instruction in body |
+| opencode | Agents `.md` with frontmatter, or JSON | `~/.config/opencode/agents/` | `.opencode/agents/` | Yes: `{file:...}` in JSON prompt |
+| Kiro CLI | JSON agents | `~/.kiro/agents/` | `.kiro/agents/` | Yes, native: `"prompt": "file://..."` |
+| Codex | Hierarchical AGENTS.md + skills | `~/.codex/AGENTS.md` and `~/.codex/skills/` | `AGENTS.md` at repo root | AGENTS.md files concatenate automatically |
+| Gemini / Antigravity CLI | Subagents `.md` + hierarchical AGENTS.md + skills | `~/.gemini/antigravity-cli/` | `.gemini/` and `AGENTS.md` at root | Yes: `.md` subagents and on-demand reading |
 
-Regla transversal: **el agente necesita permiso de lectura** para cargar su
-definición y sus skills bajo demanda. Sin `read`, tenés un asistente genérico
-con nombre lindo.
+Cross-cutting rule: **the agent requires read permission** to load its definition
+and skills on demand. Without `read`, you have a generic assistant with a nice name.
 
 ---
 
 ## Claude Code
 
-### Global (disponible en todos los proyectos)
+### Global (available in all projects)
 
-Crear `~/.claude/agents/architect.md`:
+Create `~/.claude/agents/architect.md`:
 
 ```markdown
 ---
@@ -44,31 +44,31 @@ identity, judgment model, and escalation ladder. It inherits
 Load the skills it references when their triggers fire.
 ```
 
-- El body del archivo es el system prompt del subagente; el frontmatter mínimo
-  es `name` + `description` (la description decide cuándo Claude lo delega —
-  escribila pensando en el trigger, no en el marketing).
-- Opcional: `tools:` para restringir herramientas y `model:` para fijar modelo.
-  El instalador escribe `tools: Read, Grep, Glob, WebFetch, WebSearch, Agent`
-  para los agentes con `access: read` del catálogo; los `full` heredan todo.
-- Se invoca pidiéndolo ("usá el agente architect") o Claude lo delega solo
-  cuando la tarea matchea la description.
+- The file body is the subagent's system prompt; minimum frontmatter is
+  `name` + `description` (the description decides when Claude delegates —
+  write it focusing on the trigger, not marketing).
+- Optional: `tools:` to restrict tools and `model:` to pin a model.
+  The installer writes `tools: Read, Grep, Glob, WebFetch, WebSearch, Agent`
+  for catalog agents with `access: read`; `full` access agents inherit everything.
+- Invoked explicitly ("use the architect agent") or Claude delegates automatically
+  when the task matches the description.
 
-### Por proyecto
+### Per Project
 
-Mismo archivo en `.claude/agents/architect.md` dentro del repo. El de proyecto
-pisa al global si comparten nombre.
+The same file in `.claude/agents/architect.md` inside the repo. Project-level
+overrides global if they share a name.
 
-### Bonus: las skills del catálogo son compatibles directo
+### Bonus: Catalog skills are directly compatible
 
-Los SKILL.md del catálogo siguen el spec de Agent Skills que Claude Code lee
-nativamente. Para exponer una skill suelta sin pasar por el agente:
+The catalog's `SKILL.md` files follow the Agent Skills specification that Claude
+Code reads natively. To expose a standalone skill without going through an agent:
 
 ```bash
 ln -s ~/Developer/local-agents/generalist/skills/verification ~/.claude/skills/verification
 ```
 
-Ojo con colisiones de nombre con skills existentes; si chocan, renombrá el
-symlink y el `name:` del frontmatter debe seguir matcheando la carpeta.
+Watch out for name collisions with existing skills; if they collide, rename the
+symlink and ensure the frontmatter `name:` still matches the folder name.
 
 ---
 
@@ -76,8 +76,7 @@ symlink y el `name:` del frontmatter debe seguir matcheando la carpeta.
 
 ### Global
 
-Crear `~/.config/opencode/agents/architect.md` (el nombre del archivo = nombre
-del agente):
+Create `~/.config/opencode/agents/architect.md` (filename = agent name):
 
 ```markdown
 ---
@@ -91,16 +90,15 @@ identity, judgment model, and escalation ladder. It inherits
 Load the skills it references when their triggers fire.
 ```
 
-- `mode: primary` = seleccionable como agente principal (Tab);
-  `mode: subagent` = solo delegable.
-- Frontmatter soporta además `model`, `temperature` y `permission` (p. ej.
-  `permission: { edit: deny }` para un agente de solo consulta). El instalador
-  emite `permission: { edit: deny, bash: deny }` para los agentes con
-  `access: read` del catálogo.
+- `mode: primary` = selectable as primary agent (Tab);
+  `mode: subagent` = delegable only.
+- Frontmatter also supports `model`, `temperature`, and `permission` (e.g.
+  `permission: { edit: deny }` for query-only agents). The installer emits
+  `permission: { edit: deny, bash: deny }` for catalog agents with `access: read`.
 
-### Alternativa JSON con `{file:}` — prompt directo sin instrucción de lectura
+### JSON alternative with `{file:}` — direct prompt without read instruction
 
-En `opencode.json` el prompt puede SER el archivo:
+In `opencode.json` the prompt can BE the file:
 
 ```json
 "agent": {
@@ -112,17 +110,17 @@ En `opencode.json` el prompt puede SER el archivo:
 }
 ```
 
-Tradeoff: `{file:}` inyecta el contenido del AGENTS.md como system prompt (no
-depende de que el modelo "lea bien"), pero NO resuelve la herencia — el
-generalist no viene incluido. Para los agentes que heredan (architect,
-senior-dev, ux-ui), la variante markdown con instrucción "read both" es más
-fiel. Las rutas de `{file:}` se resuelven relativas al archivo de config.
+Tradeoff: `{file:}` injects the content of `AGENTS.md` as system prompt (does not
+depend on the model "reading properly"), but does NOT resolve inheritance — the
+generalist is not included. For agents that inherit (architect, senior-dev, ux-ui),
+the markdown variant with a "read both" instruction is more faithful. Paths in
+`{file:}` resolve relative to the configuration file.
 
-### Por proyecto
+### Per Project
 
-Mismo markdown en `.opencode/agents/architect.md` del repo. Además, opencode
-lee `AGENTS.md` en la raíz del proyecto como reglas generales — ahí podés
-apuntar al catálogo para que TODO agente del proyecto conozca las convenciones.
+Same markdown in `.opencode/agents/architect.md` in the repo. Additionally, opencode
+reads `AGENTS.md` at project root as general rules — there you can point to the
+catalog so EVERY project agent knows the conventions.
 
 ---
 
@@ -130,8 +128,7 @@ apuntar al catálogo para que TODO agente del proyecto conozca las convenciones.
 
 ### Global
 
-Crear `~/.kiro/agents/architect.json` (el nombre del archivo = nombre del
-agente):
+Create `~/.kiro/agents/architect.json` (filename = agent name):
 
 ```json
 {
@@ -146,52 +143,52 @@ agente):
 }
 ```
 
-Para los agentes consultivos (`access: read` en el catálogo: visionary y
-eng-manager) el instalador emite en cambio:
+For consultative agents (`access: read` in the catalog: visionary and eng-manager),
+the installer emits instead:
 
 ```json
   "tools": ["read"],
   "allowedTools": ["read"]
 ```
 
-- `"prompt": "file://..."` es Patrón A nativo: rutas absolutas se usan tal
-  cual, relativas se resuelven desde el directorio del config.
-- `resources` precarga archivos como contexto — ideal para la herencia del
-  generalist. Podés precargar también las skills con un glob
-  (`"file:///Users/you/Developer/local-agents/architect/skills/**/*.md"`), pero eso
-  rompe el disclosure progresivo: pagás todo el contexto siempre. Preferí
-  precargar solo los AGENTS.md y dejar que las skills se lean bajo demanda con
-  el tool `read`.
+- `"prompt": "file://..."` is native Pattern A: absolute paths are used as-is,
+  relative paths resolve from the config directory.
+- `resources` preloads files as context — ideal for generalist inheritance.
+  You can also preload skills with a glob
+  (`"file:///Users/you/Developer/local-agents/architect/skills/**/*.md"`), but that
+  breaks progressive disclosure: you pay the full context every time. Prefer
+  preloading only the `AGENTS.md` files and letting skills load on demand with
+  the `read` tool.
 
-### Por proyecto
+### Per Project
 
-Mismo JSON en `.kiro/agents/architect.json` del repo (vale solo desde ese
-directorio hacia abajo).
+Same JSON in `.kiro/agents/architect.json` within the repo (scoped from that
+directory down).
 
-### Uso
+### Usage
 
 ```bash
-kiro-cli agent list                    # verificar que aparece
-kiro-cli chat --agent architect        # arrancar con el agente
+kiro-cli agent list                    # verify it appears
+kiro-cli chat --agent architect        # start with the agent
 ```
 
 ---
 
 ## Codex
 
-Codex no tiene "agentes con nombre": su mecanismo es la jerarquía de AGENTS.md
-(se concatenan de la raíz hacia tu directorio; el más cercano manda) más skills.
-Dos movimientos:
+Codex does not have "named agents": its mechanism is the hierarchy of `AGENTS.md`
+(concatenated from the root down to your directory; the closest takes precedence)
+plus skills. Two parts:
 
-> Si lo que querés es la suite completa, `./install.py --all --tool codex` ya
-> hace esto solo: copia los cuerpos a `~/.codex/agents/` y escribe el roster en
-> `~/.codex/AGENTS.md` entre marcadores, sin tocar lo que tengas ahí. Lo de
-> abajo es la receta a mano, para cablear un agente puntual referenciando el
-> catálogo en vez de copiarlo.
+> If you want the full suite, `./install.py --all --tool codex` does this
+> automatically: copies agent bodies to `~/.codex/agents/` and writes the roster into
+> `~/.codex/AGENTS.md` between markers, preserving anything already there.
+> Below is the manual recipe for wiring an individual agent by referencing the
+> catalog instead of copying it.
 
-### Global — el generalist como base de todo
+### Global — Generalist as base for everything
 
-En `~/.codex/AGENTS.md` (guía personal, aplica en todos lados):
+In `~/.codex/AGENTS.md` (personal guidelines, applies everywhere):
 
 ```markdown
 Adopt the reasoning model defined in
@@ -200,9 +197,9 @@ rules, and reporting contract. Load the skills it references when their
 triggers fire.
 ```
 
-### Por proyecto — el rol que ese repo necesita
+### Per Project — The role that repository needs
 
-En el `AGENTS.md` de la raíz del repo:
+In `AGENTS.md` at repository root:
 
 ```markdown
 For this repository, additionally adopt
@@ -210,13 +207,13 @@ For this repository, additionally adopt
 assistant).
 ```
 
-Como los archivos se concatenan (global + proyecto), la herencia se arma sola:
-generalist de base global, rol específico por repo.
+Because files concatenate (global + project), inheritance builds itself: generalist
+as global baseline, specific role per repository.
 
-### Skills — compatibles directo, igual que en Claude Code
+### Skills — directly compatible, just like in Claude Code
 
-Codex deprecó los custom prompts en favor de Agent Skills — el MISMO spec
-SKILL.md del catálogo. Symlink y listo:
+Codex deprecated custom prompts in favor of Agent Skills — the SAME `SKILL.md`
+spec as the catalog. Symlink and done:
 
 ```bash
 mkdir -p ~/.codex/skills
@@ -224,33 +221,76 @@ ln -s ~/Developer/local-agents/generalist/skills/verification ~/.codex/skills/ve
 ln -s ~/Developer/local-agents/architect/skills/tradeoffs ~/.codex/skills/tradeoffs
 ```
 
-Codex carga solo name+description de cada skill y trae el contenido cuando
-matchea la tarea (disclosure progresivo nativo). Se invocan explícito con
-`/skills` o `$nombre`, o implícito por description. Codex también escanea
-`~/.agents/skills/` — ubicación pensada para compartirse entre herramientas;
-si mañana otra CLI la adopta, un solo set de symlinks sirve para todas.
+Codex loads only name+description of each skill and fetches content when it matches
+the task (native progressive disclosure). Invoked explicitly with `/skills` or
+`$name`, or implicitly by description. Codex also scans `~/.agents/skills/` — a
+location designed to be shared across tools; if another CLI adopts it tomorrow, a
+single set of symlinks serves all.
 
 ---
 
-## ¿Global o por proyecto? El criterio
+## Gemini / Antigravity CLI
 
-| Situación | Elegí |
+Antigravity CLI (`agy`) uses Gemini models (such as Gemini 3.8 Flash and 3.1 Pro)
+and provides native support for progressive discovery of Agent Skills and agents
+defined in Markdown with frontmatter.
+
+> If you want the full suite, `./install.py --all --tool gemini` does this
+> automatically: copies bodies to `~/.gemini/antigravity-cli/agents/`, skills to
+> `~/.gemini/antigravity-cli/skills/`, and writes the roster into
+> `~/.gemini/antigravity-cli/AGENTS.md`.
+
+### Global (available in all projects)
+
+Create `~/.gemini/antigravity-cli/agents/architect.md`:
+
+```markdown
+---
+name: architect
+description: Senior Architect mentor - guidance on architecture, tradeoffs, design reviews, and learning paths. Helpful first, challenging when it matters.
+model: inherit
+---
+
+Read /Users/you/Developer/local-agents/architect/AGENTS.md and fully adopt it:
+identity, judgment model, and escalation ladder. It inherits
+/Users/you/Developer/local-agents/generalist/AGENTS.md — read that too.
+Load the skills it references when their triggers fire.
+```
+
+### Per Project
+
+With `./install.py --all --tool gemini --project <repo>`, agents and skills are
+copied to `.gemini/` and the roster is written to `AGENTS.md` at repo root.
+Antigravity CLI automatically discovers the rules in `AGENTS.md` when working in
+the directory.
+
+### Skills
+
+Catalog skills follow the `SKILL.md` specification (`name:` and `description:` in
+frontmatter). Antigravity CLI discovers them automatically and only loads the full
+content when the task requires it.
+
+---
+
+## Global or Per Project? Decision Criteria
+
+| Situation | Choose |
 |---|---|
-| Tu forma de trabajar, siempre (generalist) | Global |
-| Roles que usás en cualquier lado (architect, senior-dev, ux-ui) | Global |
-| Un repo con equipo: convenciones que viajan con el código | Por proyecto (y commiteá la config) |
-| Ojo: config por proyecto que referencia `~/Developer/local-agents` | Solo funciona en TU máquina — para equipos, vendorizá el catálogo en el repo o usá Patrón B |
+| Your default way of working, always (generalist) | Global |
+| Roles you use everywhere (architect, senior-dev, ux-ui) | Global |
+| A shared team repo: conventions traveling with code | Per Project (and commit the config) |
+| Caution: per-project config referencing `~/Developer/local-agents` | Works ONLY on your machine — for teams, vendor the catalog into the repo or use Pattern B |
 
-Esa última fila es la trampa para tener presente: las rutas absolutas a tu home
-no existen en la máquina de un compañero ni en CI.
+That last row is the pitfall to remember: absolute paths to your user home do not
+exist on a teammate's machine or in CI.
 
-## Smoke test: verificar que el agente cargó de verdad
+## Smoke Test: Verifying the agent actually loaded
 
-Después de configurar, no asumas — verificá (peldaño 4, no peldaño 2). Abrí el
-agente y preguntale algo que solo sabe si leyó el catálogo:
+After configuring, do not assume — verify (rung 4, not rung 2). Open the agent and
+ask something it only knows if it read the catalog:
 
-> "¿Cuál es tu escalera de evidencia y qué peldaño exige 'done'?"
+> "What is your ladder of evidence and which rung does 'done' require?"
 
-Si responde los 4 peldaños (Observado > Testeado > Leído > Recordado) y "mínimo
-el 3", cargó. Si te da una respuesta genérica sobre testing, el prompt no llegó
-— revisá permisos de `read` y rutas.
+If it responds with the 4 rungs (Observed > Tested > Read > Recalled) and "minimum
+rung 3", it loaded. If it gives a generic answer about testing, the prompt did not
+reach it — check `read` permissions and paths.
