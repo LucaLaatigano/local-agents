@@ -255,9 +255,9 @@ model: inherit
 tools: [view_file, list_dir, find_by_name, grep_search, write_to_file, replace_file_content, multi_replace_file_content, run_command, read_url_content, search_web, invoke_subagent, define_subagent, manage_subagents, manage_task, send_message, schedule, ask_question]
 ---
 
-Read ~/Developer/local-agents/architect/AGENTS.md and fully adopt it:
+Read /Users/you/Developer/local-agents/architect/AGENTS.md and fully adopt it:
 identity, judgment model, and escalation ladder. It inherits
-~/Developer/local-agents/generalist/AGENTS.md — read that too.
+/Users/you/Developer/local-agents/generalist/AGENTS.md — read that too.
 Load the skills it references when their triggers fire.
 ```
 

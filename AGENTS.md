@@ -61,7 +61,7 @@ Rules for this catalog:
 7. To wire an agent into a tool config (opencode, SDK, etc.) see
    [INTEGRATION.md](INTEGRATION.md) — reference the file, never copy the prompt.
 8. **One plan, brochures on the side.** The English docs are the single
-   source of truth. A file named `*.es.md` — today only
+   source of truth. A file named `*.es.md` — such as
    [REFERENCE.es.md](REFERENCE.es.md), the human-facing quick guide — is a
    brochure written natively in Spanish, holding only what can't be derived
    from the English files. It is not a translation and must never become one:
@@ -69,7 +69,10 @@ Rules for this catalog:
    into Spanish, and do not keep ES/EN twins of any doc. A second copy of the
    plan has to be kept identical to the first by hand, and nothing can check
    that it is. This applies to agents and LLMs editing the repo as much as to
-   people. Fix a stale brochure in its own language.
+   people. Fix a stale brochure in its own language. The one English passage
+   a brochure may carry is its opening do-not-translate note, so that a reader
+   who does not read Spanish still meets the rule before acting on the file;
+   it states the rule and nothing else, and is not a twin.
 9. Tool-specific setup recipes (Claude Code, opencode, Kiro CLI, Codex,
    Antigravity CLI), global
    and per-project: [USAGE.md](USAGE.md).

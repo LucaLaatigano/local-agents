@@ -164,7 +164,7 @@ target path does not exist.
 
 ## What happens to an agent during installation
 
-The installed copy is not identical to the catalog file; two differences are deliberate:
+The installed copy is not identical to the catalog file; three differences are deliberate:
 
 1. **Inheritance is inlined.** The parent's `CORE.md` is embedded into the body so
    the copied agent is self-contained (see below).
@@ -176,9 +176,9 @@ The installed copy is not identical to the catalog file; two differences are del
    or `access: full`. In Claude Code that is a `tools:` allowlist; in opencode,
    `permission`; in Kiro, `tools` tags; in Antigravity, a `tools:` allowlist per
    tier (written for `full` too, because an agent without one gets almost no
-   tools); in Codex, a lead note in the header because the
-   host has no tool-level enforcement. What no host can express
-   by tool name remains a behavioral prompt promise guarded by the harness.
+   tools); in Codex, a lead note in the header because the host has no
+   tool-level enforcement. What no host can express by tool name remains a
+   behavioral prompt promise guarded by the harness.
 
 The second point arose from a real trace: an agent searched for its own skills,
 failed to find them by path, and replied *"I could not read the catalog skills —
@@ -403,7 +403,8 @@ Tool("mytool", "My Tool",
      HOME / ".mytool",             # directory whose existence indicates installation
      HOME / ".mytool/skills",      # where skills land
      HOME / ".mytool/agents",      # where agents land (None if unsupported)
-     "claude_md"),                 # agent file format
+     "claude_md",                  # agent file format
+     ".mytool"),                   # per-repo config dir, used by --project
 ```
 
 This is sufficient **if the tool uses an existing format** (`claude_md`,

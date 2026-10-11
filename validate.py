@@ -60,7 +60,7 @@ HARNESS_PATTERNS = [
     (r"~/\.config/opencode", "opencode config path"),
     (r"~/\.kiro", "Kiro config path"),
     (r"~/\.codex", "Codex config path"),
-    (r"~/\.gemini", "Gemini config path"),
+    (r"~/\.gemini", "Antigravity config path"),
     (r"`/[a-z][a-z-]*`", "harness slash command"),
 ]
 
@@ -426,9 +426,9 @@ def check_orchestration_roster(cat: Catalog):
 
 # Prose that assumes the host can *invoke* another agent. Handoffs are written
 # as ownership ("belongs to X", "goes to X") because that reads correctly
-# everywhere: Claude Code and Kiro have named agents, Codex has none and reaches
-# identities through a roster file. "Delegate to the X agent" describes a button
-# that does not exist in every target.
+# everywhere: Claude Code, Kiro and Antigravity have named agents, Codex has
+# none and reaches identities through a roster file. "Delegate to the X agent"
+# describes a button that does not exist in every target.
 INVOCATION_PATTERNS = [
     r"\buse the [a-z-]+ agent\b",
     r"\bdelegate to\b",

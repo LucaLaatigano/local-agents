@@ -1021,10 +1021,12 @@ def print_list(agents, all_skills):
         print(f"  {n}  — {len(a.skills)} skills: {', '.join(s.name for s in a.skills)}")
     print(f"\nSkills: {len(all_skills)} total (address as agent:skill)")
     print("\nTools:")
+    key_w = max(len(t.key) for t in TOOLS)
+    label_w = max(len(t.label) for t in TOOLS)
     for t in TOOLS:
         mark = "available" if t.config_root.exists() else "not detected"
         agentcap = "agents+skills" if t.agents_dir else "skills only"
-        print(f"  {t.key:9} {t.label:42} [{mark}, {agentcap}]")
+        print(f"  {t.key:{key_w}}  {t.label:{label_w}}  [{mark}, {agentcap}]")
 
 
 def main():
