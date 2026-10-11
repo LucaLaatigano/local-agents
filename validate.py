@@ -352,6 +352,44 @@ def check_kiro_contract(cat: Catalog):
     return errs
 
 
+def check_agy_contract(cat: Catalog):
+    """The Antigravity `tools:` lists the installer emits must match USAGE.md.
+
+    Same failure as Kiro's, with a worse symptom: agy resolves every name in
+    `tools:` against its registry at startup, and an unknown one aborts the
+    agent ("tool ... not found in registry"). The names were measured on agy
+    1.3.3 — a hand-edited copy in either file that drifts from the other is a
+    recipe that does not start."""
+    errs = []
+    usage = (cat.root / "USAGE.md").read_text(encoding="utf-8")
+    install = (cat.root / "install.py").read_text(encoding="utf-8")
+
+    def names(arr: str) -> tuple:
+        return tuple(t.strip().strip('"') for t in arr.split(",") if t.strip())
+
+    documented = sorted(names(m) for m in re.findall(r"^tools: \[([^\]]*)\]$", usage, re.M))
+    mapping = re.search(r"^AGY_TOOLS\s*=\s*\{(.*?)^\}", install, re.M | re.S)
+    emitted = sorted(names(m) for m in
+                     re.findall(r'"(?:read|full)":\s*\[([^\]]*)\]', mapping.group(1), re.S)
+                     ) if mapping else []
+    if len(emitted) != 2:
+        errs.append(f"install.py: expected AGY_TOOLS with a `read` and a `full` list, "
+                    f"found {len(emitted)}")
+    if len(documented) != 2:
+        errs.append(f"USAGE.md: expected one `tools: [...]` line per access tier, "
+                    f"found {len(documented)}")
+    if len(emitted) == 2 and len(documented) == 2 and emitted != documented:
+        code = {n for t in emitted for n in t}
+        docs = {n for t in documented for n in t}
+        diff = (f"only in install.py: {sorted(code - docs) or '-'}; "
+                f"only in USAGE.md: {sorted(docs - code) or '-'}")
+        if code == docs:
+            diff = "same names, but grouped or ordered differently per tier"
+        errs.append(f"Antigravity tools lists differ ({diff}) — they must agree; "
+                    f"an unknown name aborts the agent at startup")
+    return errs
+
+
 def check_inheritance(cat: Catalog):
     """Every agent but `generalist` must declare that it inherits the reasoning
     model, and detection must actually see it.
@@ -520,6 +558,29 @@ def check_installer(cat: Catalog):
             if proc.returncode != 0:
                 errs.append(f"install.py {' '.join(args)} exited {proc.returncode}: "
                             f"{proc.stderr.strip()[-200:]}")
+
+        # `shared` and `antigravity` share `.agents/` per project and write the
+        # same agent paths in different formats; the installer must refuse the
+        # second one, in either order, and leave the first one's files intact.
+        for first, second in (("antigravity", "shared"), ("shared", "antigravity")):
+            project = Path(tempfile.mkdtemp(dir=home))
+            def install(t):
+                return subprocess.run(
+                    [sys.executable, str(cat.root / "install.py"), "--agent", "architect",
+                     "--tool", t, "--project", str(project), "--on-conflict", "overwrite"],
+                    capture_output=True, text=True, env=env, stdin=subprocess.DEVNULL)
+            body = project / ".agents" / "agents" / "architect.md"
+            if install(first).returncode != 0 or not body.is_file():
+                errs.append(f"install.py --tool {first} --project did not write {body.name}")
+                continue
+            before = body.read_text(encoding="utf-8")
+            proc = install(second)
+            if proc.returncode == 0 or "refusing" not in proc.stderr:
+                errs.append(f"install.py let --tool {second} --project overwrite a "
+                            f"{first} install in .agents/ — it must refuse the mix")
+            elif body.read_text(encoding="utf-8") != before:
+                errs.append(f"install.py refused --tool {second} but still changed "
+                            f"the {first} agent file")
     return errs
 
 
@@ -854,9 +915,10 @@ CHECKS = [
     ("link-identity", "link text names its target (paths die on install)", check_link_identity),
     ("access-policy", "rule 16 — every agent declares access: read | full", check_access_policy),
     ("kiro-contract", "Kiro agent JSON matches the recipe in USAGE.md", check_kiro_contract),
+    ("agy-contract", "Antigravity tools lists match the recipe in USAGE.md", check_agy_contract),
     ("readme-counts", "README roster matches reality", check_readme_counts),
     ("reference-roster", "REFERENCE.es.md lists every agent (Spanish guide)", check_reference_roster),
-    ("installer", "install.py --list, --dry-run and a real install succeed", check_installer),
+    ("installer", "install.py --list, --dry-run, a real install, and the .agents/ guard", check_installer),
 ]
 
 
