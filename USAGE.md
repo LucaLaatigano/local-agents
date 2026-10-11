@@ -19,7 +19,7 @@ against official documentation (July 2026).
 | opencode | Agents `.md` with frontmatter, or JSON | `~/.config/opencode/agents/` | `.opencode/agents/` | Yes: `{file:...}` in JSON prompt |
 | Kiro CLI | JSON agents | `~/.kiro/agents/` | `.kiro/agents/` | Yes, native: `"prompt": "file://..."` |
 | Codex | Agents `.toml` + hierarchical AGENTS.md + skills | `~/.codex/agents/` and `~/.codex/skills/` | `.codex/agents/` and `AGENTS.md` at repo root | Via "Read X" instruction in `developer_instructions` |
-| Antigravity CLI | Subagents `.md` with frontmatter + skills | `~/.gemini/config/agents/` and `~/.gemini/antigravity-cli/skills/` | `.agents/agents/` and `.agents/skills/` | Via "Read X" instruction in body |
+| Antigravity CLI | Subagents `.md` with frontmatter + skills | `~/.gemini/config/agents/` and `~/.gemini/config/skills/` | `.agents/agents/` and `.agents/skills/` | Via "Read X" instruction in body |
 
 Cross-cutting rule: **the agent requires read permission** to load its definition
 and skills on demand. Without `read`, you have a generic assistant with a nice name.
@@ -265,14 +265,15 @@ single set of symlinks serves all.
 
 Antigravity CLI (`agy`) replaced Gemini CLI for the free tier and Google One
 accounts. It reads subagents as Markdown with YAML frontmatter and discovers
-Agent Skills on demand. Its global layout is split in two: subagents live in
-`~/.gemini/config/agents/` (shared with the Antigravity IDE) and skills in
-`~/.gemini/antigravity-cli/skills/`. Per project, both live under `.agents/`.
-Sources: antigravity.google/docs/subagents and /docs/skills.
+Agent Skills on demand. Globally both live under `~/.gemini/config/` (shared
+with the Antigravity IDE): subagents in `agents/`, skills in `skills/`. Per
+project, both live under `.agents/`. Sources: antigravity.google/docs/subagents
+and /docs/skills — except the CLI skills path, where the docs say
+`~/.gemini/antigravity-cli/skills/` and agy 1.3.3 does not read it (measured).
 
 > If you want the full suite, `./install.py --all --tool antigravity` does this
 > automatically: bodies to `~/.gemini/config/agents/`, skills to
-> `~/.gemini/antigravity-cli/skills/`. No roster: Antigravity has named
+> `~/.gemini/config/skills/`. No roster: Antigravity has named
 > subagents, so every body is reachable on its own.
 
 ### Global (available in all projects)

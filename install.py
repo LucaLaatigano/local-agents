@@ -55,12 +55,12 @@ def env_dir(var: str, default: Path) -> Path:
 
 CLAUDE_ROOT = env_dir("CLAUDE_CONFIG_DIR", HOME / ".claude")
 CODEX_ROOT = env_dir("CODEX_HOME", HOME / ".codex")
-# Antigravity CLI splits its global layout across two trees, per
-# antigravity.google/docs/skills and /docs/subagents: skills under the CLI's own
-# dir, subagents under the config dir it shares with the IDE. Per workspace both
-# live under `.agents/`.
-AGY_ROOT = HOME / ".gemini/antigravity-cli"
-AGY_AGENTS = HOME / ".gemini/config/agents"
+# Antigravity reads both agents and skills from the config dir it shares with
+# the IDE; per workspace both live under `.agents/`. Measured on agy 1.3.3: the
+# docs give `~/.gemini/antigravity-cli/skills/` for the CLI, but agy does not
+# read it — `~/.gemini/config/skills/` is the only skills path in the binary,
+# and a skill placed there is the one it sees.
+AGY_ROOT = HOME / ".gemini/config"
 
 
 # --------------------------------------------------------------------------- #
@@ -125,7 +125,7 @@ TOOLS = [
          project_also_reads=(".agents/skills",)),
     Tool("antigravity", "Antigravity CLI",
          AGY_ROOT, AGY_ROOT / "skills",
-         AGY_AGENTS, "antigravity_md", ".agents"),
+         AGY_ROOT / "agents", "antigravity_md", ".agents"),
     Tool("shared", "Shared (~/.agents — skills read by opencode + Codex)",
          HOME / ".agents", HOME / ".agents/skills",
          HOME / ".agents/agents", "roster_md", ".agents"),

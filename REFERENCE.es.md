@@ -69,8 +69,8 @@ Herramientas: `claude`, `opencode`, `kiro`, `codex`, `antigravity`, `shared`.
   escribir.
 - **`shared`** no es un host: copia los cuerpos y escribe un roster en su
   `AGENTS.md`, respetando lo que ya tengas ahí.
-- **Antigravity** reparte la instalación global en dos lugares: agentes en
-  `~/.gemini/config/agents/` y skills en `~/.gemini/antigravity-cli/skills/`.
+- **Antigravity** instala agentes y skills en `~/.gemini/config/` (la ruta
+  `~/.gemini/antigravity-cli/skills/` que da su doc no la lee agy 1.3.3).
   Por proyecto, ambos van bajo `.agents/`, la misma carpeta que usa `shared`,
   así que en un repo elegí uno de los dos: el instalador no te deja mezclarlos.
 - Si usás varias herramientas, actualizalas todas con `--refresh`: opencode

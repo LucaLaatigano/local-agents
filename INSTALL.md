@@ -133,7 +133,7 @@ Where each tool lands:
 | opencode | `~/.config/opencode/` | `.opencode/agents/` and `.opencode/skills/` |
 | Kiro CLI | `~/.kiro/` | `.kiro/agents/` and `.kiro/skills/` |
 | Codex | `~/.codex/` | `.codex/agents/` and `.codex/skills/` |
-| Antigravity CLI | `~/.gemini/antigravity-cli/skills/` + `~/.gemini/config/agents/` | `.agents/agents/` and `.agents/skills/` |
+| Antigravity CLI | `~/.gemini/config/` | `.agents/agents/` and `.agents/skills/` |
 
 `shared` is the special case: it has no named agents, so per project its roster
 goes to the root `AGENTS.md`, between markers — anything the team already has in
@@ -146,9 +146,10 @@ roster block (the file is deleted if nothing else was in it). Per project that
 block is shared with `--tool shared`; if a shared install is present the block
 stays, because it still serves it.
 
-Antigravity splits the other way: globally, skills live under the CLI's own
-`~/.gemini/antigravity-cli/` while subagents live in `~/.gemini/config/agents/`,
-shared with the IDE; per project both go under `.agents/`. That is the same
+Antigravity keeps agents and skills globally under `~/.gemini/config/`, shared
+with the IDE — not under `~/.gemini/antigravity-cli/skills/`, which its docs give
+for the CLI but agy 1.3.3 does not read (measured). Per project both go under
+`.agents/`. That is the same
 directory `--tool shared --project` writes to, and the two write the same agent
 paths in different formats: Antigravity needs frontmatter, the shared bodies
 have none. Antigravity does not load a body without frontmatter as an agent,
@@ -393,7 +394,7 @@ In interactive mode, a collision prompts you to choose overwrite, rename, or ski
 | opencode (`opencode`) | `~/.config/opencode/agents/{name}.md` | `~/.config/opencode/skills/{name}/` |
 | Kiro CLI (`kiro`) | `~/.kiro/agents/{name}.json` | `~/.kiro/skills/{name}/` |
 | Codex (`codex`) | `~/.codex/agents/{name}.toml` | `~/.codex/skills/{name}/` |
-| Antigravity CLI (`antigravity`) | `~/.gemini/config/agents/{name}.md` | `~/.gemini/antigravity-cli/skills/{name}/` |
+| Antigravity CLI (`antigravity`) | `~/.gemini/config/agents/{name}.md` | `~/.gemini/config/skills/{name}/` |
 | Shared (`shared`) | `~/.agents/agents/{name}.md` + roster in `~/.agents/AGENTS.md` | `~/.agents/skills/{name}/` (skills read by opencode + Codex; opencode does not read its agents) |
 
 **Note on `shared`:** It is not a host, so nothing gives it named subagent

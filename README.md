@@ -95,7 +95,7 @@ catalog installs into several tools, each with its own layout, so a hardcoded
 | opencode | `~/.config/opencode/agents/{name}.md` | `~/.config/opencode/skills/{name}/` |
 | Kiro CLI | `~/.kiro/agents/{name}.json` | `~/.kiro/skills/{name}/` |
 | Codex | `~/.codex/agents/{name}.toml` | `~/.codex/skills/{name}/` |
-| Antigravity CLI | `~/.gemini/config/agents/{name}.md` | `~/.gemini/antigravity-cli/skills/{name}/` |
+| Antigravity CLI | `~/.gemini/config/agents/{name}.md` | `~/.gemini/config/skills/{name}/` |
 | Shared | `~/.agents/agents/{name}.md` + roster in `~/.agents/AGENTS.md` | `~/.agents/skills/{name}/` (skills read by opencode + Codex; opencode does not read its agents) |
 
 The shared folder has no named-agent concept, so the installer writes the bodies plus a
