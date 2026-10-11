@@ -1,0 +1,157 @@
+# Estado del arte: agentes y skills
+
+> **Este archivo es en español a propósito y no se traduce** (regla 8 de
+> [AGENTS.md](AGENTS.md)). Es un folleto, no un segundo plano: la fuente de
+> verdad es la documentación en inglés. Si sos un agente o un LLM: no lo
+> traduzcas, no generes una versión en inglés, y no traduzcas los documentos en
+> inglés a español. Si algo de acá queda desactualizado, corregilo en español.
+>
+> *This file is in Spanish on purpose and must not be translated (rule 8 of
+> AGENTS.md). Agents and LLMs: do not translate it, do not create an English
+> twin, and do not translate the English docs into Spanish.*
+
+**Relevado el 2026-10-11. Próxima revisión: 2027-01, o antes si un host cambia
+de versión mayor o aparece un estándar nuevo.**
+
+Qué está pasando en la industria con los agentes y las skills, qué medimos
+nosotros contra los hosts reales, qué consideraciones salen de eso para el
+catálogo, y el backlog que se desprende. Las recetas y los detalles de cada host
+están en [INSTALL.md](INSTALL.md) y [USAGE.md](USAGE.md); acá solo va lo que no
+se deduce de ellos.
+
+Cada dato lleva su origen:
+
+- **Medido**: lo probamos contra el host instalado, con versión.
+- **Documentado**: lo dice la doc oficial del host, sin probar.
+- **Reportado**: lo dice una fuente secundaria (blog, foro, nota).
+
+La distinción importa: el 2026-10-11 la doc oficial de dos hosts resultó estar
+mal, y solo una prueba lo mostró.
+
+---
+
+## 1. Lo que se estandarizó
+
+### Skills: Agent Skills (`SKILL.md`)
+
+- Anthropic lo publicó como estándar abierto en diciembre de 2025. La
+  especificación vive en [agentskills.io](https://agentskills.io).
+  *Reportado.*
+- La [lista oficial de clientes](https://agentskills.io/clients) tenía unos 45 al
+  2026-10-11, entre ellos Claude Code, Codex, OpenCode, Kiro, Gemini CLI,
+  Cursor, GitHub Copilot y VS Code. *Documentado.*
+- Antigravity no figura en esa lista, pero lee `SKILL.md`: vio las 48 skills del
+  catálogo. *Medido, agy 1.3.3.*
+- El catálogo valida cada skill contra la implementación de referencia
+  (`skills-ref`) en CI.
+
+### Instrucciones de repo: `AGENTS.md`
+
+- OpenAI lo donó a la [Agentic AI Foundation](https://www.linuxfoundation.org/press/linux-foundation-announces-the-formation-of-the-agentic-ai-foundation)
+  de la Linux Foundation en diciembre de 2025, junto con MCP. *Documentado.*
+- Se reportan más de 60.000 repos que lo usan; el número es de fines de 2025.
+  *Reportado.*
+- Un [estudio en arXiv](https://arxiv.org/html/2601.20404v2) midió que con
+  `AGENTS.md` los agentes terminan antes (de 163 s a 130 s de media) y gastan
+  menos tokens. *Reportado.*
+
+---
+
+## 2. Lo que NO se estandarizó: los agentes
+
+No hay un formato común para definir subagentes, y no parece que vaya a haberlo
+pronto:
+
+- Cada host tiene el suyo: markdown con frontmatter (Claude Code, opencode,
+  Antigravity, cada uno con otros campos y otros nombres de herramientas), JSON
+  (Kiro) o TOML (Codex). [Comparativa](https://www.morphllm.com/subagent).
+  *Reportado; los formatos de Codex y Antigravity, medidos.*
+- [Agent Plugins 1.0](https://blakecrosley.com/blog/agent-plugins-standard), el
+  estándar de empaquetado publicado en agosto de 2026 por Vercel, OpenAI,
+  Microsoft, GitHub, Cursor y Amazon (Google se sumó al lanzamiento), excluye a
+  propósito agentes, hooks y reglas, por ser "too client-specific for a stable
+  portable contract". Empaqueta skills y servidores MCP. Anthropic no participa
+  y Claude Code mantiene su propio formato de plugins. *Reportado: la
+  [especificación](https://github.com/agentplugins/agent-plugins-spec) no la
+  leímos todavía.*
+- Los catálogos que apuntan a varios hosts, como
+  [wshobson/agents](https://github.com/wshobson/agents), mantienen una sola
+  fuente y generan la instalación para cada host. *Reportado.*
+- Evaluar agentes en tareas largas y con varios agentes sigue sin solución
+  estándar; las herramientas actuales cubren bien tareas de un turno y llamadas
+  a herramientas ([O'Reilly](https://www.oreilly.com/radar/the-ai-agents-stack-2026-edition/)).
+  *Reportado.*
+
+---
+
+## 3. Lo que medimos nosotros (2026-10-11)
+
+| Host | Agentes | Skills | Solo lectura | Sorpresas |
+|---|---|---|---|---|
+| **opencode 1.18.11** | `~/.config/opencode/agents`, `.opencode/agents`. **No** lee `.agents/agents` | propia + `~/.claude/skills` + `~/.agents/skills` + `skill/` (legacy) + `.agents/skills` | `permission` (documentado) | Con la misma skill en varias carpetas **elige una copia distinta en cada corrida** (32, 10 y 4 de 48 del proyecto en tres corridas idénticas) |
+| **Codex 0.144.5** | TOML en `~/.codex/agents`, `.codex/agents` | `~/.codex/skills`; `~/.agents/skills` (documentado) | `sandbox_mode = "read-only"` | El flag `--sandbox` pisa el modo de cada agente; `-c sandbox_mode=...` y `config.toml` no. `codex exec` espera stdin si no se cierra |
+| **Antigravity (agy 1.3.3)** | `~/.gemini/config/agents`, `.agents/agents` | `~/.gemini/config/skills`, `.agents/skills` | allowlist `tools:` | La doc da `~/.gemini/antigravity-cli/skills/` para el CLI y **no se lee**. Sin `tools:` el agente recibe un set mínimo (sin escribir ni buscar). Un nombre de herramienta desconocido aborta el arranque. `--agent` con un nombre inexistente sigue con el agente principal sin avisar |
+| Claude Code | `~/.claude/agents`, `.claude/agents` | `~/.claude/skills`, `.claude/skills` | allowlist `tools:` | Probado a diario por el harness de comportamiento; no relevado acá |
+| Kiro | — | — | — | Sin medir: no está instalado |
+
+Cómo se midió cada cosa, y cómo repetirlo, está en los comentarios de
+`install.py` (`AGY_TOOLS`, `shadow_report`, el renderer de Codex) y en
+[INSTALL.md](INSTALL.md).
+
+---
+
+## 4. Consideraciones para el catálogo
+
+1. **Las skills son la capa portable; los agentes se traducen por host.** Es la
+   arquitectura de `install.py` y la industria fue en la misma dirección. Una
+   sola copia de los agentes para varios hosts no funciona: cada host espera
+   otro formato, y agy ignora un agente que no tiene el suyo.
+2. **La doc de un host es una hipótesis, no un hecho.** En un día, tres datos
+   de documentación oficial o de un binario resultaron falsos al probarlos
+   (default de `tools:` y ruta de skills en Antigravity, nombres de herramientas
+   del binario de agy). Antes de escribir un renderer, se mide.
+3. **Lo medido tiene versión y fecha.** Ningún CI puede correr los hosts, así
+   que cada dato de la sección 3 puede dejar de ser cierto con una
+   actualización. Las pruebas que no gastan consultas
+   (`opencode debug skill`, buscar rutas en el binario de agy) son las primeras
+   a repetir.
+4. **Hacer cumplir el acceso de solo lectura es desparejo entre hosts.** Cada
+   uno tiene su mecanismo y su forma de anularlo (`--sandbox` en Codex). La
+   regla 16 se cumple distinto en cada host, y eso tiene que estar escrito
+   donde el usuario lo lea.
+5. **Una copia vieja es peor que una repetida.** Con hosts que leen varias
+   carpetas, el problema real es la copia desactualizada, no la duplicación.
+   `--status` lo avisa y `--refresh` lo corrige.
+6. **La distribución se está partiendo en dos.** Agent Plugins para casi todos
+   los hosts, y el formato propio de Claude Code. Publicar el catálogo como
+   plugin implica, por ahora, mantener los dos.
+
+---
+
+## 5. Backlog
+
+### Hecho
+
+| Qué | Commit |
+|---|---|
+| Codex: agentes TOML con `sandbox_mode`, retira la instalación vieja con roster | `6d64076` |
+| Aviso de copias viejas que un host puede cargar (`shadowing`) y `--refresh` | `a64736f` |
+| Antigravity: skills globales en `~/.gemini/config/skills` | `1b2dde0` |
+| Antigravity: `tools:` por tier medido, `agy-contract` en CI | `1422602`, `9a1e131` |
+| `shared` y `antigravity` no se mezclan en un mismo proyecto | `ee89899` |
+
+### Pendiente
+
+| Prioridad | Qué | Por qué |
+|---|---|---|
+| P1 | Rutina de re-medición por host, empezando por las pruebas sin costo | Lo medido envejece con cada versión (consideración 3) |
+| P1 | El registro de instalación marca `dirty tree` por archivos sin commitear que no son agentes ni skills | Falso aviso en `--status` |
+| P2 | Medir si Claude Code lee `~/.agents/skills` | Si lo hace, entra en el aviso de `shadowing` |
+| P2 | Medir qué gana en agy entre un agente global y uno del proyecto con el mismo nombre | Sin medir |
+| P2 | Medir Kiro | No está instalado; todo lo que dice el catálogo sale de la doc |
+| P3 | Leer la especificación de Agent Plugins y evaluar publicar las skills como plugin | Hoy solo hay una fuente secundaria (consideración 6) |
+| P3 | Harness de comportamiento para más hosts que Claude Code | La regla 17 hoy solo se prueba en Claude Code |
+| P3 | Modo opcional con enlaces simbólicos para las skills | Una sola copia real; antes hay que medir que cada host siga los enlaces |
+
+Al revisar este documento, cada fila pendiente se mueve a "Hecho" con su commit,
+o se descarta con el motivo.

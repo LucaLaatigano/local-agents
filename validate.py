@@ -148,7 +148,7 @@ def frontmatter(text: str):
 def check_links(cat: Catalog):
     errs = []
     files = ["AGENTS.md", "README.md", "GRAPH.md", "INSTALL.md", "USAGE.md",
-             "INTEGRATION.md", "REFERENCE.es.md"]
+             "INTEGRATION.md", "REFERENCE.es.md", "ESTADO-DEL-ARTE.es.md"]
     files += [f"{a}/AGENTS.md" for a in cat.agents]
     files += [str(p.relative_to(cat.root)) for _a, p, _t in cat.skills.values()]
     for rel in files:

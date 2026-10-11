@@ -130,6 +130,7 @@ You can also **reference** the catalog instead of copying it — see
 | [USAGE.md](USAGE.md) | Per-tool setup recipes, global and per-project |
 | [INTEGRATION.md](INTEGRATION.md) | Wiring agents into a config by reference, not by copy |
 | [REFERENCE.es.md](REFERENCE.es.md) | Quick human-facing orientation guide *(Spanish, never translated — rule 8)* |
+| [ESTADO-DEL-ARTE.es.md](ESTADO-DEL-ARTE.es.md) | Dated industry survey, what we measured on each host, and the backlog *(Spanish, never translated — rule 8)* |
 
 ---
 
