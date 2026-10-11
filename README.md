@@ -13,6 +13,7 @@ git clone https://github.com/jrodrigopuca/local-agents.git
 cd local-agents
 ./install.py --list                        # see what's available
 ./install.py --status                      # see what's installed, and if it's current
+./install.py --refresh                     # bring every installed tool up to date
 ./install.py --all --tool claude --dry-run # preview
 ./install.py --all --tool claude           # install the whole suite (global)
 ./install.py --all --tool claude --project ~/code/repo   # or vendor it into a repo
@@ -95,7 +96,7 @@ catalog installs into several tools, each with its own layout, so a hardcoded
 | Kiro CLI | `~/.kiro/agents/{name}.json` | `~/.kiro/skills/{name}/` |
 | Codex | `~/.codex/agents/{name}.md` + roster in `~/.codex/AGENTS.md` | `~/.codex/skills/{name}/` |
 | Antigravity CLI | `~/.gemini/config/agents/{name}.md` | `~/.gemini/antigravity-cli/skills/{name}/` |
-| Shared | `~/.agents/agents/{name}.md` + roster in `~/.agents/AGENTS.md` | `~/.agents/skills/{name}/` (read by opencode + Codex) |
+| Shared | `~/.agents/agents/{name}.md` + roster in `~/.agents/AGENTS.md` | `~/.agents/skills/{name}/` (skills read by opencode + Codex; opencode does not read its agents) |
 
 Codex has no named-agent concept, so the installer writes the bodies plus a
 short roster into its `AGENTS.md` — the identities stay discoverable without

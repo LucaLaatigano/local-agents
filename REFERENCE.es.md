@@ -50,6 +50,7 @@ explica a sí mismo en su `AGENTS.md`, y esta guía no lo repite.
 ```bash
 ./install.py --list                          # qué hay en el catálogo
 ./install.py --status                        # qué tenés instalado y si está al día
+./install.py --refresh                       # actualizar todo lo que ya tenés instalado
 ./install.py --all --tool claude --dry-run   # previsualizar
 ./install.py --all --tool claude             # instalar toda la suite
 ```
@@ -66,6 +67,9 @@ Herramientas: `claude`, `opencode`, `kiro`, `codex`, `antigravity`, `shared`.
   `~/.gemini/config/agents/` y skills en `~/.gemini/antigravity-cli/skills/`.
   Por proyecto, ambos van bajo `.agents/`, la misma carpeta que usa `shared`,
   así que en un repo elegí uno de los dos: el instalador no te deja mezclarlos.
+- Si usás varias herramientas, actualizalas todas con `--refresh`: opencode
+  lee skills de varias carpetas y carga cualquier copia, así que con una vieja
+  alcanza para que a veces use la versión vieja. `--status` te avisa.
 - Cada instalación estampa de qué commit del catálogo salió, así `--status` te
   dice cuántos commits atrás estás y qué cambió.
 

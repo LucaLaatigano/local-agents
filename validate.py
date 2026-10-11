@@ -559,6 +559,28 @@ def check_installer(cat: Catalog):
                 errs.append(f"install.py {' '.join(args)} exited {proc.returncode}: "
                             f"{proc.stderr.strip()[-200:]}")
 
+        # A host that reads several skill dirs may load ANY copy of a skill, so
+        # one stale copy must surface in --status under that host, and
+        # --refresh must clear it. opencode reads ~/.agents/skills (measured).
+        def run(*args):
+            return subprocess.run([sys.executable, str(cat.root / "install.py"), *args],
+                                  capture_output=True, text=True, env=env,
+                                  stdin=subprocess.DEVNULL)
+        stale_copy = Path(home) / ".agents" / "skills" / "tradeoffs" / "SKILL.md"
+        stale_copy.write_text(stale_copy.read_text(encoding="utf-8") + "\ndrift\n",
+                              encoding="utf-8")
+        status = run("--status").stdout
+        opencode_block = status.split("opencode  (opencode)")[-1].split("\nKiro")[0]
+        if "stale in" not in opencode_block or ".agents/skills" not in opencode_block:
+            errs.append("install.py --status did not warn that opencode can load a "
+                        "stale copy of a skill from ~/.agents/skills")
+        proc = run("--refresh")
+        if proc.returncode != 0:
+            errs.append(f"install.py --refresh exited {proc.returncode}: "
+                        f"{proc.stderr.strip()[-200:]}")
+        elif "shadowing" in run("--status").stdout:
+            errs.append("install.py --refresh left a stale skill copy behind")
+
         # `shared` and `antigravity` share `.agents/` per project and write the
         # same agent paths in different formats; the installer must refuse the
         # second one, in either order, and leave the first one's files intact.
@@ -918,7 +940,7 @@ CHECKS = [
     ("agy-contract", "Antigravity tools lists match the recipe in USAGE.md", check_agy_contract),
     ("readme-counts", "README roster matches reality", check_readme_counts),
     ("reference-roster", "REFERENCE.es.md lists every agent (Spanish guide)", check_reference_roster),
-    ("installer", "install.py --list, --dry-run, a real install, and the .agents/ guard", check_installer),
+    ("installer", "install.py --list, --dry-run, real installs, stale-copy warning, --refresh, .agents/ guard", check_installer),
 ]
 
 

@@ -83,6 +83,11 @@ class Tool:
     agent_style: Optional[str]   # "claude_md" | "opencode_md" | "kiro_json" | "roster_md" | "antigravity_md"
     project_dir: str             # per-repo config dir, relative to the project root
     roster_file: Optional[Path] = None   # roster destination; defaults to config_root/AGENTS.md
+    # Skill dirs the HOST also reads besides skills_dir — global paths, and
+    # project paths relative to the repo root. Only used to report shadowing:
+    # the installer never relies on another tool's copy (see shadow_report).
+    also_reads: tuple = ()
+    project_also_reads: tuple = ()
 
     @property
     def roster(self) -> Path:
@@ -98,19 +103,30 @@ TOOLS = [
     Tool("claude", "Claude Code",
          CLAUDE_ROOT, CLAUDE_ROOT / "skills",
          CLAUDE_ROOT / "agents", "claude_md", ".claude"),
+    # Measured on opencode 1.18.11 with `opencode debug skill`: it also loads
+    # skills from Claude Code's dir, the shared dir and its legacy singular
+    # `skill/`, and per project from `.agents/skills`. It does NOT read agents
+    # from `.agents/agents`.
     Tool("opencode", "opencode",
          HOME / ".config/opencode", HOME / ".config/opencode/skills",
-         HOME / ".config/opencode/agents", "opencode_md", ".opencode"),
+         HOME / ".config/opencode/agents", "opencode_md", ".opencode",
+         also_reads=(HOME / ".claude/skills", HOME / ".agents/skills",
+                     HOME / ".config/opencode/skill"),
+         project_also_reads=(".agents/skills",)),
     Tool("kiro", "Kiro CLI",
          HOME / ".kiro", HOME / ".kiro/skills",
          HOME / ".kiro/agents", "kiro_json", ".kiro"),
+    # Documented, not measured: Codex scans `~/.agents/skills`, and per project
+    # `.agents/skills`.
     Tool("codex", "Codex",
          CODEX_ROOT, CODEX_ROOT / "skills",
-         CODEX_ROOT / "agents", "roster_md", ".codex"),
+         CODEX_ROOT / "agents", "roster_md", ".codex",
+         also_reads=(HOME / ".agents/skills",),
+         project_also_reads=(".agents/skills",)),
     Tool("antigravity", "Antigravity CLI",
          AGY_ROOT, AGY_ROOT / "skills",
          AGY_AGENTS, "antigravity_md", ".agents"),
-    Tool("shared", "Shared (~/.agents — read by opencode + Codex)",
+    Tool("shared", "Shared (~/.agents — skills read by opencode + Codex)",
          HOME / ".agents", HOME / ".agents/skills",
          HOME / ".agents/agents", "roster_md", ".agents"),
 ]
@@ -131,6 +147,7 @@ def project_tool(tool: Tool, root: Path) -> Tool:
         skills_dir=base / "skills",
         agents_dir=(base / "agents") if tool.agents_dir else None,
         roster_file=(root / "AGENTS.md") if tool.agent_style == "roster_md" else None,
+        also_reads=tuple(root / rel for rel in tool.project_also_reads),
     )
 
 def refuse_shared_project_dir(tool: Tool, agents: dict):
@@ -141,21 +158,30 @@ def refuse_shared_project_dir(tool: Tool, agents: dict):
     to agy's main agent without a word. Refuse the mix instead of picking a
     winner silently. Call only for project installs: globally the two tools
     use different directories."""
+    other = shared_dir_owner(tool, agents)
+    if other:
+        sys.exit(f"refusing to install {tool.key} into {tool.config_root}: it already "
+                 f"holds the {other} install, and both write {tool.agents_dir}/<name>.md "
+                 f"in different formats — the second would silently replace the first. "
+                 f"Use one of them per project, or remove {tool.agents_dir} first.")
+
+
+def shared_dir_owner(tool: Tool, agents: dict) -> Optional[str]:
+    """The key of ANOTHER tool whose agent files already occupy this tool's
+    agents_dir, told apart by format (frontmatter or not); None if the dir is
+    empty or already this tool's."""
     if not tool.agents_dir or not tool.agents_dir.is_dir():
-        return
+        return None
     wants_frontmatter = tool.agent_style != "roster_md"
     for name in sorted(agents):
         f = tool.agents_dir / f"{name}.md"
         if not f.is_file():
             continue
-        if f.read_text(encoding="utf-8").startswith("---\n") != wants_frontmatter:
-            other = next((t.key for t in TOOLS if t.key != tool.key
-                          and t.project_dir == tool.project_dir), "another tool")
-            sys.exit(f"refusing to install {tool.key} into {tool.config_root}: it already "
-                     f"holds the {other} install, and both write {tool.agents_dir}/<name>.md "
-                     f"in different formats — the second would silently replace the first. "
-                     f"Use one of them per project, or remove {tool.agents_dir} first.")
-        return
+        if f.read_text(encoding="utf-8").startswith("---\n") == wants_frontmatter:
+            return None
+        return next((t.key for t in TOOLS if t.key != tool.key
+                     and t.project_dir == tool.project_dir), "another tool")
+    return None
 
 
 ROSTER_BEGIN = "<!-- BEGIN:local-agents -->"
@@ -927,6 +953,43 @@ def interactive(agents, all_skills, skills_by_name, policy, dry_run, with_deps, 
 # --------------------------------------------------------------------------- #
 # CLI
 # --------------------------------------------------------------------------- #
+def shadow_report(tool: Tool, skills_by_name: dict, project=None) -> list:
+    """Lines warning that this host sees a catalog skill in more than one dir
+    and at least one copy is stale.
+
+    A host that reads several skill dirs keeps ONE copy per name, and which one
+    is not stable: measured on opencode 1.18.11, three identical runs took 32,
+    10 and 4 of 48 skills from the project and the rest from global copies — one
+    of them two months old. Identical copies make that harmless; a stale one
+    makes the skill the host loads a coin toss. So the report is about stale
+    copies, not duplicates, and it names the refresh that fixes each."""
+    dirs = [tool.skills_dir, *tool.also_reads]
+    owners = {}
+    for t in TOOLS:
+        t = project_tool(t, project) if project else t
+        owners.setdefault(t.skills_dir, t.key)
+    seen_twice, stale_in = 0, {}
+    for name, src in skills_by_name.items():
+        copies = [d for d in dirs if (d / name / "SKILL.md").is_file()]
+        if len(copies) < 2:
+            continue
+        seen_twice += 1
+        fresh = render_skill((src.path / "SKILL.md").read_text(encoding="utf-8"),
+                             src.agent, name)
+        for d in copies:
+            if (d / name / "SKILL.md").read_text(encoding="utf-8") != fresh:
+                stale_in[d] = stale_in.get(d, 0) + 1
+    if not stale_in:
+        return []
+    lines = [f"shadowing: {seen_twice} catalog skills are visible here from more "
+             f"than one dir, and the host may load any copy — stale ones:"]
+    for d, n in sorted(stale_in.items(), key=lambda kv: str(kv[0])):
+        owner = owners.get(d)
+        fix = f"  → ./install.py --all --tool {owner} --on-conflict overwrite" if owner else ""
+        lines.append(f"  {n} stale in {d}{fix}")
+    return lines
+
+
 def print_status(agents, skills_by_name, project=None, catalog=None):
     """What is actually installed in each tool, and whether it still matches the
     catalog. Answers the question `--list` cannot: not "what could I install"
@@ -969,6 +1032,8 @@ def print_status(agents, skills_by_name, project=None, catalog=None):
             if items:
                 print(f"      {label}: {', '.join(items[:8])}"
                       f"{f' +{len(items) - 8} more' if len(items) > 8 else ''}")
+        for line in shadow_report(tool, skills_by_name, project):
+            print(f"    {line}")
 
         # --- agents: rendered, so compare against a fresh render ---
         if tool.agents_dir is None:
@@ -1012,7 +1077,8 @@ def print_status(agents, skills_by_name, project=None, catalog=None):
 
     scope = f" --project {project}" if project else ""
     print(f"\ncatalog: {len(agents)} agents, {len(skills_by_name)} skills — refresh with:"
-          f"  ./install.py --all --tool <key>{scope} --on-conflict overwrite")
+          f"  ./install.py --all --tool <key>{scope} --on-conflict overwrite"
+          f"\n  or every tool installed from the catalog at once:  ./install.py --refresh{scope}")
 
 
 def print_list(agents, all_skills):
@@ -1040,6 +1106,9 @@ def main():
                          "your home config, so the setup travels with the repo")
     ap.add_argument("--status", action="store_true",
                     help="show what is installed in each tool and whether it is current")
+    ap.add_argument("--refresh", action="store_true",
+                    help="reinstall the whole suite into every tool that already holds "
+                         "a catalog install (overwrites catalog files only)")
     ap.add_argument("--all", action="store_true", help="install the whole suite (all agents + skills)")
     ap.add_argument("--agent", action="append", default=[], help="agent name to install (repeatable)")
     ap.add_argument("--skill", action="append", default=[], help="skill as agent:skill or name (repeatable)")
@@ -1087,6 +1156,24 @@ def main():
 
     if args.dry_run:
         print("=== DRY RUN — no files will be written ===")
+
+    # One stale copy is enough for a host that reads several skill dirs to load
+    # it (see shadow_report), so refresh every catalog install, not one tool.
+    if args.refresh:
+        # Per project, shared and antigravity share `.agents/` and its stamp, so
+        # the stamp alone cannot say which one is installed — the agent files can.
+        installed = []
+        for t in TOOLS:
+            here = project_tool(t, project) if project else t
+            if (here.config_root / MANIFEST).is_file() and not shared_dir_owner(here, agents):
+                installed.append(t)
+        if not installed:
+            sys.exit("--refresh: no tool here holds a catalog install (no "
+                     f"{MANIFEST} found) — install one with --all --tool <key>")
+        for t in installed:
+            install_suite(target(t), "overwrite", False, args.dry_run,
+                          agents, skills_by_name, catalog)
+        return
 
     # Non-interactive: whole suite
     if args.all:

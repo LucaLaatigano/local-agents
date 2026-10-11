@@ -275,10 +275,34 @@ What each label means:
 | `missing` | Present in catalog but missing from tool |
 | `foreign (untouched)` | User-created, outside catalog. The installer never touches it |
 | `roster: N rows` | Codex, shared: rows in `AGENTS.md`. Warns if count differs from bodies |
+| `shadowing` | The host reads this skill from more than one dir and one copy is stale — names the dir and the command that refreshes it |
 
 `stale` is computed by **content**, not timestamps: skills and agents are
 re-rendered through the exact installation pipeline and compared with disk,
 making "up to date" completely deterministic.
+
+### One stale copy is enough: `--refresh`
+
+Some hosts read skills from several directories. opencode, measured on 1.18.11,
+loads them from its own dir, from `~/.claude/skills`, from `~/.agents/skills`
+and per project from `.agents/skills`, and keeps **one copy per name — not the
+same one every time**: three identical runs took 32, 10 and 4 of 48 skills from
+the project and the rest from global copies. Identical copies make that
+harmless. A stale one turns every load of that skill into a coin toss, which is
+what `shadowing` reports.
+
+Updating one tool does not fix it if another tool's copy is the stale one.
+`--refresh` reinstalls the whole suite into **every tool that already holds a
+catalog install** (it has a `.local-agents.json`), overwriting catalog files
+only:
+
+```bash
+./install.py --refresh             # every global install
+./install.py --refresh --project . # every install in this repo
+```
+
+The installer still writes one copy per tool and never relies on another
+tool's: removing Claude Code must not take opencode's skills with it.
 
 ---
 
@@ -288,6 +312,7 @@ making "up to date" completely deterministic.
 |---|---|
 | View everything available | `./install.py --list` |
 | **Check installed status and staleness** | `./install.py --status` |
+| **Bring every installed tool up to date** | `./install.py --refresh` |
 | **Install into a repository (for the team)** | `./install.py --all --tool claude --project ~/code/repo` |
 | Preview (writes nothing) | add `--dry-run` to any command |
 | **Install the full suite** | `./install.py --all --tool claude` |
@@ -359,7 +384,7 @@ In interactive mode, a collision prompts you to choose overwrite, rename, or ski
 | Kiro CLI (`kiro`) | `~/.kiro/agents/{name}.json` | `~/.kiro/skills/{name}/` |
 | Codex (`codex`) | `~/.codex/agents/{name}.md` + roster in `~/.codex/AGENTS.md` | `~/.codex/skills/{name}/` |
 | Antigravity CLI (`antigravity`) | `~/.gemini/config/agents/{name}.md` | `~/.gemini/antigravity-cli/skills/{name}/` |
-| Shared (`shared`) | `~/.agents/agents/{name}.md` + roster in `~/.agents/AGENTS.md` | `~/.agents/skills/{name}/` (read by opencode + Codex) |
+| Shared (`shared`) | `~/.agents/agents/{name}.md` + roster in `~/.agents/AGENTS.md` | `~/.agents/skills/{name}/` (skills read by opencode + Codex; opencode does not read its agents) |
 
 **Note on Codex:** It has no named subagent slots like Claude Code,
 so the script addresses this in two parts: it copies the bodies into `agents/{name}.md`
@@ -390,6 +415,7 @@ available to both.
 | `--list` | List catalog contents and detected tools, then exit |
 | `--project [PATH]` | Install into a repository instead of user home (no path = current dir) |
 | `--status` | Check what is INSTALLED in each tool and whether it is up to date, then exit |
+| `--refresh` | Reinstall the suite into every tool that already holds a catalog install |
 
 ---
 
