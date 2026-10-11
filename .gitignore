@@ -1,0 +1,4 @@
+# macOS Finder metadata. Without this, a checkout read with no global git
+# excludes (CI, a throwaway HOME) counts it as untracked, and every install
+# stamp records the catalog as a dirty tree.
+.DS_Store
