@@ -631,6 +631,40 @@ def check_installer(cat: Catalog):
     return errs
 
 
+def check_install_stamp(cat: Catalog):
+    """The install stamp calls the catalog dirty only when what gets installed
+    differs from the commit. Measured: with `git status` over the whole repo, a
+    new root doc stamped every install "+ uncommitted changes" although every
+    installed file matched the commit."""
+    import importlib.util
+    if subprocess.run(["git", "-C", str(cat.root), "rev-parse", "HEAD"],
+                      capture_output=True).returncode != 0:
+        return []  # not a git checkout: nothing to stamp
+    spec = importlib.util.spec_from_file_location("installer_stamp", cat.root / "install.py")
+    installer = importlib.util.module_from_spec(spec)
+    sys.modules["installer_stamp"] = installer
+    spec.loader.exec_module(installer)
+    errs = []
+    with tempfile.TemporaryDirectory() as tmp:
+        clone = Path(tmp) / "catalog"
+        subprocess.run(["git", "clone", "-q", "--local", str(cat.root), str(clone)],
+                       check=True, capture_output=True)
+        agent = sorted(cat.agents)[0]
+        cases = [
+            ("a new doc at the catalog root", clone / "NOTES.es.md", False),
+            ("a new, uncommitted skill", clone / agent / "skills" / "zz-new" / "SKILL.md", True),
+        ]
+        for label, path, want in cases:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("probe\n", encoding="utf-8")
+            got = installer.catalog_state(clone)[1]
+            if got != want:
+                errs.append(f"install stamp: {label} should {'' if want else 'not '}"
+                            f"mark the catalog dirty")
+            path.unlink()
+    return errs
+
+
 # --------------------------------------------------------------------------- #
 # Derived blocks — pure data, safe to generate
 # --------------------------------------------------------------------------- #
@@ -963,6 +997,7 @@ CHECKS = [
     ("access-policy", "rule 16 — every agent declares access: read | full", check_access_policy),
     ("kiro-contract", "Kiro agent JSON matches the recipe in USAGE.md", check_kiro_contract),
     ("agy-contract", "Antigravity tools lists match the recipe in USAGE.md", check_agy_contract),
+    ("install-stamp", "the install stamp is dirty only when installed content changed", check_install_stamp),
     ("readme-counts", "README roster matches reality", check_readme_counts),
     ("reference-roster", "REFERENCE.es.md lists every agent (Spanish guide)", check_reference_roster),
     ("installer", "install.py --list, --dry-run, real installs, stale-copy warning, --refresh, .agents/ guard", check_installer),

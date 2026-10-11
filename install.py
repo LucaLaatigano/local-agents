@@ -856,12 +856,23 @@ def git(catalog: Path, *args):
     return proc.stdout.strip() if proc.returncode == 0 else None
 
 
+# What an install is rendered from. A change anywhere else — a new doc at the
+# root, an edited README — leaves every installed file identical, so it must
+# not mark the stamp dirty; an uncommitted skill or agent edit must.
+INSTALL_INPUTS = ("install.py", ":(glob)*/AGENTS.md", ":(glob)*/CORE.md",
+                  ":(glob)*/skills/**", ":(glob)skills/**")
+
+
 def catalog_state(catalog: Path):
-    """(commit, dirty) for the catalog as it is being installed FROM."""
+    """(commit, dirty) for the catalog as it is being installed FROM. Dirty
+    means uncommitted changes in INSTALL_INPUTS, untracked files included: a
+    new skill folder is installed before it is committed."""
     commit = git(catalog, "rev-parse", "HEAD")
     if not commit:
         return None, False
-    return commit, bool(git(catalog, "status", "--porcelain") or "")
+    status = git(catalog, "status", "--porcelain", "--untracked-files=all",
+                 "--", *INSTALL_INPUTS)
+    return commit, bool(status or "")
 
 
 def write_manifest(tool: Tool, catalog: Path, dry_run: bool):

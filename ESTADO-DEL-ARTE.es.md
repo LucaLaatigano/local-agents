@@ -71,9 +71,14 @@ pronto:
   Microsoft, GitHub, Cursor y Amazon (Google se sumó al lanzamiento), excluye a
   propósito agentes, hooks y reglas, por ser "too client-specific for a stable
   portable contract". Empaqueta skills y servidores MCP. Anthropic no participa
-  y Claude Code mantiene su propio formato de plugins. *Reportado: la
-  [especificación](https://github.com/agentplugins/agent-plugins-spec) no la
-  leímos todavía.*
+  y Claude Code mantiene su propio formato de plugins. *Reportado.*
+  La [especificación 1.0.0](https://github.com/agentplugins/agent-plugins-spec/blob/main/spec/1.0.0.md)
+  lo confirma (*documentado*): un plugin es una carpeta con `plugin.json`
+  (obligatorios `$schema` y `name`), `skills/` en un solo nivel y un `mcp.json`
+  opcional. No define registro, marketplace ni dónde se instala: el mínimo que
+  exige a un cliente es cargar un plugin desde una ruta. Lo propio de cada
+  cliente va bajo un namespace de dominio invertido. Codex lo soporta desde la
+  0.146 (*reportado*).
 - Los catálogos que apuntan a varios hosts, como
   [wshobson/agents](https://github.com/wshobson/agents), mantienen una sola
   fuente y generan la instalación para cada host. *Reportado.*
@@ -88,7 +93,7 @@ pronto:
 
 | Host | Agentes | Skills | Solo lectura | Sorpresas |
 |---|---|---|---|---|
-| **opencode 1.18.11** | `~/.config/opencode/agents`, `.opencode/agents`. **No** lee `.agents/agents` | propia + `~/.claude/skills` + `~/.agents/skills` + `skill/` (legacy) + `.agents/skills` | `permission` (documentado) | Con la misma skill en varias carpetas **elige una copia distinta en cada corrida** (32, 10 y 4 de 48 del proyecto en tres corridas idénticas) |
+| **opencode 1.18.11** | `~/.config/opencode/agents`, `.opencode/agents`. **No** lee `.agents/agents` | propia + `~/.claude/skills` + `~/.agents/skills` + `skill/` (legacy); por proyecto `.agents/skills` y `.claude/skills` | `permission` (documentado) | Con la misma skill en varias carpetas **elige una copia distinta en cada corrida** (32, 10 y 4 de 48 del proyecto en tres corridas idénticas) |
 | **Codex 0.144.5** | TOML en `~/.codex/agents`, `.codex/agents` | `~/.codex/skills`; `~/.agents/skills` (documentado) | `sandbox_mode = "read-only"` | El flag `--sandbox` pisa el modo de cada agente; `-c sandbox_mode=...` y `config.toml` no. `codex exec` espera stdin si no se cierra |
 | **Antigravity (agy 1.3.3)** | `~/.gemini/config/agents`, `.agents/agents`; con el mismo nombre **gana el del proyecto** | `~/.gemini/config/skills`, `.agents/skills` | allowlist `tools:` | La doc da `~/.gemini/antigravity-cli/skills/` para el CLI y **no se lee**. Sin `tools:` el agente recibe un set mínimo (sin escribir ni buscar). Un nombre de herramienta desconocido aborta el arranque. Un agente sin frontmatter se ignora: `--agent` usa el global de ese nombre si existe, o el agente principal, sin avisar |
 | **Claude Code 2.1.296** | `~/.claude/agents`, `.claude/agents` | `~/.claude/skills`, `.claude/skills`. **No** lee `~/.agents/skills` ni `.agents/skills` | allowlist `tools:` | Se puede medir gratis: el evento `init` de `claude -p --output-format stream-json --verbose` lista las skills cargadas antes de consultar al modelo. El comportamiento de los agentes lo prueba el harness |
@@ -139,6 +144,8 @@ Cómo se midió cada cosa, y cómo repetirlo, está en los comentarios de
 | Antigravity: skills globales en `~/.gemini/config/skills` | `1b2dde0` |
 | Medido: Claude Code no lee `~/.agents/skills` ni `.agents/skills` (el aviso de `shadowing` no cambia) | este documento |
 | Medido: en agy gana el agente del proyecto; uno sin frontmatter se ignora y usa el global | este documento |
+| El registro de instalación solo marca `dirty tree` si cambió algo que se instala (agentes, skills, `install.py`); chequeo `install-stamp` en CI | este cambio |
+| Medido: los cuatro hosts (opencode, Claude Code, agy, Codex) siguen un enlace simbólico a una skill de proyecto | este documento |
 | Antigravity: `tools:` por tier medido, `agy-contract` en CI | `1422602`, `9a1e131` |
 | `shared` y `antigravity` no se mezclan en un mismo proyecto | `ee89899` |
 
@@ -146,12 +153,11 @@ Cómo se midió cada cosa, y cómo repetirlo, está en los comentarios de
 
 | Prioridad | Qué | Por qué |
 |---|---|---|
-| P1 | Rutina de re-medición por host, empezando por las pruebas sin costo | Lo medido envejece con cada versión (consideración 3) |
-| P1 | El registro de instalación marca `dirty tree` por archivos sin commitear que no son agentes ni skills | Falso aviso en `--status` |
+| P1 | **Suite de humo por host** en el harness: por host, que el agente cargue con su identidad, que el de solo lectura no pueda escribir y que el completo sí. Verifica archivos, sin juez. Reemplaza la "rutina de re-medición" y el "harness para más hosts" | Lo medido envejece con cada versión (consideración 3), y la regla 17 hoy solo se prueba en Claude Code. Es lo que se hizo a mano el 2026-10-11, repetible |
+| P2 | Agregar `.claude/skills` al `project_also_reads` de opencode | Medido: opencode también lee esa carpeta por proyecto; hoy el aviso de `shadowing` no la ve |
 | P2 | Medir Kiro | No está instalado; todo lo que dice el catálogo sale de la doc |
-| P3 | Leer la especificación de Agent Plugins y evaluar publicar las skills como plugin | Hoy solo hay una fuente secundaria (consideración 6) |
-| P3 | Harness de comportamiento para más hosts que Claude Code | La regla 17 hoy solo se prueba en Claude Code |
-| P3 | Modo opcional con enlaces simbólicos para las skills | Una sola copia real; antes hay que medir que cada host siga los enlaces |
+| P3 | Publicar las skills como plugin de Agent Plugins | **En espera.** Los agentes, que son el valor central del catálogo, no son portables en la 1.0; sin registro definido, publicar no ahorra nada frente a `install.py`; Claude Code no lo soporta; requiere Codex 0.146+. Revisar si la especificación suma agentes o un registro |
+| P3 | Modo opcional con enlaces simbólicos para las skills | **En espera.** Medido que los cuatro hosts siguen los enlaces, pero: el catálogo NO puede ser el destino, porque las skills se instalan transformadas (`render_skill` reescribe los links entre skills); el destino tendría que ser una copia ya instalada (por ejemplo `~/.agents/skills`), que si se borra rompe a todos los hosts a la vez; en Windows crear enlaces requiere permisos. Con `--refresh` el problema que resolvía ya está cubierto |
 
 Al revisar este documento, cada fila pendiente se mueve a "Hecho" con su commit,
 o se descarta con el motivo.
