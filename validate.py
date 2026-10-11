@@ -631,6 +631,35 @@ def check_installer(cat: Catalog):
     return errs
 
 
+def check_skill_descriptions(cat: Catalog):
+    """Every installed SKILL.md carries its description on ONE line, saying
+    exactly what the catalog's block scalar says. Measured on kiro-cli 2.29.1:
+    a `description: >` reached Kiro empty, and the description is the trigger
+    that decides when a skill loads."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("installer_desc", cat.root / "install.py")
+    installer = importlib.util.module_from_spec(spec)
+    sys.modules["installer_desc"] = installer
+    spec.loader.exec_module(installer)
+    errs = []
+
+    def description(text):
+        m = re.match(r"---\n(.*?)\n---", text, re.S)
+        return (yaml.safe_load(m.group(1)) or {}).get("description") if m else None
+
+    for name, (agent, path, text) in sorted(cat.skills.items()):
+        rendered = installer.render_skill(text, agent, name)
+        head = rendered.split("\n---", 1)[0]
+        lines = [ln for ln in head.split("\n") if ln.startswith("description:")]
+        if len(lines) != 1 or lines[0].rstrip().endswith((">", "|", ">-", "|-")):
+            errs.append(f"{name}: installed description is not a single line")
+            continue
+        want, got = description(text), description(rendered)
+        if " ".join(str(want).split()) != " ".join(str(got).split()):
+            errs.append(f"{name}: installed description differs from the catalog's")
+    return errs
+
+
 def check_install_stamp(cat: Catalog):
     """The install stamp calls the catalog dirty only when what gets installed
     differs from the commit. Measured: with `git status` over the whole repo, a
@@ -998,6 +1027,7 @@ CHECKS = [
     ("kiro-contract", "Kiro agent JSON matches the recipe in USAGE.md", check_kiro_contract),
     ("agy-contract", "Antigravity tools lists match the recipe in USAGE.md", check_agy_contract),
     ("install-stamp", "the install stamp is dirty only when installed content changed", check_install_stamp),
+    ("skill-descriptions", "installed skill descriptions are one line and match the catalog", check_skill_descriptions),
     ("readme-counts", "README roster matches reality", check_readme_counts),
     ("reference-roster", "REFERENCE.es.md lists every agent (Spanish guide)", check_reference_roster),
     ("installer", "install.py --list, --dry-run, real installs, stale-copy warning, --refresh, .agents/ guard", check_installer),

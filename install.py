@@ -105,14 +105,14 @@ TOOLS = [
          CLAUDE_ROOT / "agents", "claude_md", ".claude"),
     # Measured on opencode 1.18.11 with `opencode debug skill`: it also loads
     # skills from Claude Code's dir, the shared dir and its legacy singular
-    # `skill/`, and per project from `.agents/skills`. It does NOT read agents
-    # from `.agents/agents`.
+    # `skill/`, and per project from `.agents/skills` and `.claude/skills`. It
+    # does NOT read agents from `.agents/agents`.
     Tool("opencode", "opencode",
          HOME / ".config/opencode", HOME / ".config/opencode/skills",
          HOME / ".config/opencode/agents", "opencode_md", ".opencode",
          also_reads=(HOME / ".claude/skills", HOME / ".agents/skills",
                      HOME / ".config/opencode/skill"),
-         project_also_reads=(".agents/skills",)),
+         project_also_reads=(".agents/skills", ".claude/skills")),
     Tool("kiro", "Kiro CLI",
          HOME / ".kiro", HOME / ".kiro/skills",
          HOME / ".kiro/agents", "kiro_json", ".kiro"),
@@ -314,6 +314,39 @@ def yaml_description(desc: str) -> str:
     return f"description: {desc}"
 
 
+def flatten_description(skill_md_text: str) -> str:
+    """Write a block-scalar `description:` (`>` / `|`) as ONE double-quoted line.
+
+    Measured on kiro-cli 2.29.1: Kiro reads only the first line of the
+    description, so `description: >` reached it EMPTY — and the description is
+    the trigger that tells an agent when to load the skill, so in Kiro no
+    catalog skill ever fired. A one-line quoted scalar means the same to every
+    YAML parser, so it is written for every host; the catalog sources keep the
+    readable block form. Lines are joined with spaces (folding); a quoted
+    string is JSON-escaped, which is valid YAML."""
+    if not skill_md_text.startswith("---"):
+        return skill_md_text
+    end = skill_md_text.find("\n---", 3)
+    if end == -1:
+        return skill_md_text
+    lines = skill_md_text[:end].split("\n")
+    out, i = [], 0
+    while i < len(lines):
+        m = re.match(r"^description:\s*([>|][+-]?)\s*$", lines[i])
+        if not m:
+            out.append(lines[i])
+            i += 1
+            continue
+        i += 1
+        block = []
+        while i < len(lines) and (lines[i].strip() == "" or lines[i][:1] in (" ", "\t")):
+            block.append(lines[i].strip())
+            i += 1
+        folded = " ".join(part for part in block if part)
+        out.append(f"description: {json.dumps(folded, ensure_ascii=False)}")
+    return "\n".join(out) + skill_md_text[end:]
+
+
 def rewrite_skill_name(skill_md_text: str, new_name: str) -> str:
     """Replace the `name:` value inside the first frontmatter block, so a
     renamed skill's metadata matches its new folder (tools key on both)."""
@@ -338,7 +371,15 @@ def rewrite_skill_name(skill_md_text: str, new_name: str) -> str:
 # prompt, guarded by the behavioural harness. A tier is a floor, not the rule.
 ACCESS_TIERS = ("read", "full")
 CLAUDE_READ_TOOLS = "Read, Grep, Glob, WebFetch, WebSearch, Agent"
-KIRO_TOOLS = {"read": ["read"], "full": ["read", "write", "shell"]}
+# Measured on kiro-cli 2.29.1, which enforces this list (an agent with
+# ["read"] could not write). `full` is every tool, as a full agent inherits
+# everything in Claude Code. `read` mirrors CLAUDE_READ_TOOLS: read, search,
+# fetch and delegate. `code` is left out because its AST rewrite edits files;
+# `subagent` stays, and a delegated agent can write — the same as `Agent` in
+# Claude Code, and what rule 16 means by "delegate".
+# `kiro-cli agent validate` accepts unknown tags, so it cannot check this.
+KIRO_TOOLS = {"read": ["read", "grep", "glob", "web_fetch", "web_search", "subagent"],
+              "full": ["*"]}
 # Antigravity needs `tools:` on EVERY agent, not only the read tier. Measured
 # against agy 1.3.3: with the field omitted a subagent gets a minimal default
 # (view_file, read_url_content, search_web, ...) — no grep, no write, no shell —
@@ -630,7 +671,7 @@ def render_skill(text: str, owner: Optional[str], name: str) -> str:
     - `../../AGENTS.md` / `../../../agent/AGENTS.md` become the agent's NAME:
       agent files land in another directory with a per-tool filename, so no
       relative path is true everywhere (same reasoning as deref_skill_links)."""
-    text = rewrite_skill_name(text, name)
+    text = flatten_description(rewrite_skill_name(text, name))
 
     def skill_sub(m):
         label, target = m.group(1), m.group(2)
@@ -1071,7 +1112,9 @@ def shadow_report(tool: Tool, skills_by_name: dict, project=None) -> list:
              f"than one dir, and the host may load any copy — stale ones:"]
     for d, n in sorted(stale_in.items(), key=lambda kv: str(kv[0])):
         owner = owners.get(d)
-        fix = f"  → ./install.py --all --tool {owner} --on-conflict overwrite" if owner else ""
+        scope = f" --project {project}" if project else ""
+        fix = (f"  → ./install.py --all --tool {owner}{scope} --on-conflict overwrite"
+               if owner else "")
         lines.append(f"  {n} stale in {d}{fix}")
     return lines
 

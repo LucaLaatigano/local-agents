@@ -97,7 +97,7 @@ pronto:
 | **Codex 0.144.5** | TOML en `~/.codex/agents`, `.codex/agents` | `~/.codex/skills`; `~/.agents/skills` (documentado) | `sandbox_mode = "read-only"` | El flag `--sandbox` pisa el modo de cada agente; `-c sandbox_mode=...` y `config.toml` no. `codex exec` espera stdin si no se cierra |
 | **Antigravity (agy 1.3.3)** | `~/.gemini/config/agents`, `.agents/agents`; con el mismo nombre **gana el del proyecto** | `~/.gemini/config/skills`, `.agents/skills` | allowlist `tools:` | La doc da `~/.gemini/antigravity-cli/skills/` para el CLI y **no se lee**. Sin `tools:` el agente recibe un set mínimo (sin escribir ni buscar). Un nombre de herramienta desconocido aborta el arranque. Un agente sin frontmatter se ignora: `--agent` usa el global de ese nombre si existe, o el agente principal, sin avisar |
 | **Claude Code 2.1.296** | `~/.claude/agents`, `.claude/agents` | `~/.claude/skills`, `.claude/skills`. **No** lee `~/.agents/skills` ni `.agents/skills` | allowlist `tools:` | Se puede medir gratis: el evento `init` de `claude -p --output-format stream-json --verbose` lista las skills cargadas antes de consultar al modelo. El comportamiento de los agentes lo prueba el harness |
-| Kiro | — | — | — | Sin medir: no está instalado |
+| **Kiro (kiro-cli 2.29.1)** | JSON en `~/.kiro/agents`, `.kiro/agents` | `~/.kiro/skills`, `.kiro/skills`, vía `resources` `skill://` (el `~` funciona también por proyecto) | lista `tools`, que se hace cumplir | **Lee solo la primera línea de la descripción de una skill**: con `description: >` la ve vacía, y la skill no se dispara nunca. `code` modifica archivos (AST rewrite) y `subagent` delega en un agente que escribe. `kiro-cli agent validate` acepta herramientas y campos inventados |
 
 Cómo se midió cada cosa, y cómo repetirlo, está en los comentarios de
 `install.py` (`AGY_TOOLS`, `shadow_report`, el renderer de Codex) y en
@@ -111,10 +111,11 @@ Cómo se midió cada cosa, y cómo repetirlo, está en los comentarios de
    arquitectura de `install.py` y la industria fue en la misma dirección. Una
    sola copia de los agentes para varios hosts no funciona: cada host espera
    otro formato, y agy ignora un agente que no tiene el suyo.
-2. **La doc de un host es una hipótesis, no un hecho.** En un día, tres datos
-   de documentación oficial o de un binario resultaron falsos al probarlos
-   (default de `tools:` y ruta de skills en Antigravity, nombres de herramientas
-   del binario de agy). Antes de escribir un renderer, se mide.
+2. **La doc de un host es una hipótesis, no un hecho.** En un día, varios datos
+   de documentación oficial, de un binario o de un validador resultaron falsos
+   al probarlos: el default de `tools:` y la ruta de skills en Antigravity, los
+   nombres de herramientas del binario de agy, y un `kiro-cli agent validate`
+   que aprueba herramientas inventadas. Antes de escribir un renderer, se mide.
 3. **Lo medido tiene versión y fecha.** Ningún CI puede correr los hosts, así
    que cada dato de la sección 3 puede dejar de ser cierto con una
    actualización. Las pruebas que no gastan consultas
@@ -146,6 +147,8 @@ Cómo se midió cada cosa, y cómo repetirlo, está en los comentarios de
 | Medido: en agy gana el agente del proyecto; uno sin frontmatter se ignora y usa el global | este documento |
 | El registro de instalación solo marca `dirty tree` si cambió algo que se instala (agentes, skills, `install.py`); chequeo `install-stamp` en CI | este cambio |
 | Medido: los cuatro hosts (opencode, Claude Code, agy, Codex) siguen un enlace simbólico a una skill de proyecto | este documento |
+| opencode: el aviso de `shadowing` incluye `.claude/skills` del proyecto, y el comando sugerido lleva `--project` | este cambio |
+| Kiro medido. Descripciones de skills instaladas en una sola línea para todos los hosts (chequeo `skill-descriptions`); herramientas por tier medidas: `read` = read, grep, glob, web_fetch, web_search, subagent; `full` = todas | este cambio |
 | Antigravity: `tools:` por tier medido, `agy-contract` en CI | `1422602`, `9a1e131` |
 | `shared` y `antigravity` no se mezclan en un mismo proyecto | `ee89899` |
 
@@ -154,8 +157,6 @@ Cómo se midió cada cosa, y cómo repetirlo, está en los comentarios de
 | Prioridad | Qué | Por qué |
 |---|---|---|
 | P1 | **Suite de humo por host** en el harness: por host, que el agente cargue con su identidad, que el de solo lectura no pueda escribir y que el completo sí. Verifica archivos, sin juez. Reemplaza la "rutina de re-medición" y el "harness para más hosts" | Lo medido envejece con cada versión (consideración 3), y la regla 17 hoy solo se prueba en Claude Code. Es lo que se hizo a mano el 2026-10-11, repetible |
-| P2 | Agregar `.claude/skills` al `project_also_reads` de opencode | Medido: opencode también lee esa carpeta por proyecto; hoy el aviso de `shadowing` no la ve |
-| P2 | Medir Kiro | No está instalado; todo lo que dice el catálogo sale de la doc |
 | P3 | Publicar las skills como plugin de Agent Plugins | **En espera.** Los agentes, que son el valor central del catálogo, no son portables en la 1.0; sin registro definido, publicar no ahorra nada frente a `install.py`; Claude Code no lo soporta; requiere Codex 0.146+. Revisar si la especificación suma agentes o un registro |
 | P3 | Modo opcional con enlaces simbólicos para las skills | **En espera.** Medido que los cuatro hosts siguen los enlaces, pero: el catálogo NO puede ser el destino, porque las skills se instalan transformadas (`render_skill` reescribe los links entre skills); el destino tendría que ser una copia ya instalada (por ejemplo `~/.agents/skills`), que si se borra rompe a todos los hosts a la vez; en Windows crear enlaces requiere permisos. Con `--refresh` el problema que resolvía ya está cubierto |
 

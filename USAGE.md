@@ -138,7 +138,7 @@ Create `~/.kiro/agents/architect.json` (filename = agent name):
   "resources": [
     "file:///Users/you/Developer/local-agents/generalist/AGENTS.md"
   ],
-  "tools": ["read", "write", "shell"],
+  "tools": ["*"],
   "allowedTools": ["read"]
 }
 ```
@@ -147,9 +147,17 @@ For consultative agents (`access: read` in the catalog: visionary and eng-manage
 the installer emits instead:
 
 ```json
-  "tools": ["read"],
+  "tools": ["read", "grep", "glob", "web_fetch", "web_search", "subagent"],
   "allowedTools": ["read"]
 ```
+
+Measured on kiro-cli 2.29.1: Kiro enforces `tools` (an agent with `["read"]`
+could not write), `"*"` grants all 14 built-in tools, and two of them are not
+what their names suggest. `code` edits files through its AST rewrite, so it is
+not in the read list. `subagent` is, so a consultative agent can delegate — and
+the agent it spawns can write, exactly like `Agent` in Claude Code.
+`kiro-cli agent validate` accepts unknown tool tags without complaint, so it
+cannot catch a misspelled one.
 
 - `"prompt": "file://..."` is native Pattern A: absolute paths are used as-is,
   relative paths resolve from the config directory.
