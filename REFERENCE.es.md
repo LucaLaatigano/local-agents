@@ -61,8 +61,14 @@ Herramientas: `claude`, `opencode`, `kiro`, `codex`, `antigravity`, `shared`.
   suelto, sus handoffs apuntan a agentes que no están.
 - **Para un equipo**: `--project ~/code/repo` deja la config dentro del repo
   (`.claude/`, `.opencode/`, …) y viaja con el código. Commiteala.
-- **Codex** no tiene agentes con nombre: el instalador copia los cuerpos y
-  escribe un roster en su `AGENTS.md`, respetando lo que ya tengas ahí.
+- **Codex** carga agentes con nombre desde archivos TOML: el instalador escribe
+  uno por agente y, si encuentra la instalación vieja (cuerpos `.md` y roster
+  en `AGENTS.md`), la retira sin tocar lo tuyo. Ojo: dale escritura a la
+  sesión desde la config (`-c sandbox_mode="workspace-write"`), no con
+  `--sandbox`, porque esa opción hace que los agentes de solo lectura puedan
+  escribir.
+- **`shared`** no es un host: copia los cuerpos y escribe un roster en su
+  `AGENTS.md`, respetando lo que ya tengas ahí.
 - **Antigravity** reparte la instalación global en dos lugares: agentes en
   `~/.gemini/config/agents/` y skills en `~/.gemini/antigravity-cli/skills/`.
   Por proyecto, ambos van bajo `.agents/`, la misma carpeta que usa `shared`,

@@ -18,7 +18,7 @@ against official documentation (July 2026).
 | Claude Code | Subagents `.md` with frontmatter | `~/.claude/agents/` | `.claude/agents/` | Via "Read X" instruction in body |
 | opencode | Agents `.md` with frontmatter, or JSON | `~/.config/opencode/agents/` | `.opencode/agents/` | Yes: `{file:...}` in JSON prompt |
 | Kiro CLI | JSON agents | `~/.kiro/agents/` | `.kiro/agents/` | Yes, native: `"prompt": "file://..."` |
-| Codex | Hierarchical AGENTS.md + skills | `~/.codex/AGENTS.md` and `~/.codex/skills/` | `AGENTS.md` at repo root | AGENTS.md files concatenate automatically |
+| Codex | Agents `.toml` + hierarchical AGENTS.md + skills | `~/.codex/agents/` and `~/.codex/skills/` | `.codex/agents/` and `AGENTS.md` at repo root | Via "Read X" instruction in `developer_instructions` |
 | Antigravity CLI | Subagents `.md` with frontmatter + skills | `~/.gemini/config/agents/` and `~/.gemini/antigravity-cli/skills/` | `.agents/agents/` and `.agents/skills/` | Via "Read X" instruction in body |
 
 Cross-cutting rule: **the agent requires read permission** to load its definition
@@ -176,17 +176,49 @@ kiro-cli chat --agent architect        # start with the agent
 
 ## Codex
 
-Codex does not have "named agents": its mechanism is the hierarchy of `AGENTS.md`
-(concatenated from the root down to your directory; the closest takes precedence)
-plus skills. Two parts:
+Codex loads **named agents** from TOML files — one per agent, in
+`~/.codex/agents/` or `.codex/agents/` — and keeps its instruction hierarchy in
+`AGENTS.md` (concatenated from the root down to your directory; the closest takes
+precedence). Measured on codex-cli 0.144.5. You ask for an agent by name in the
+prompt ("have architect review this design").
 
 > If you want the full suite, `./install.py --all --tool codex` does this
-> automatically: copies agent bodies to `~/.codex/agents/` and writes the roster into
-> `~/.codex/AGENTS.md` between markers, preserving anything already there.
-> Below is the manual recipe for wiring an individual agent by referencing the
-> catalog instead of copying it.
+> automatically: one `~/.codex/agents/{name}.toml` per agent, with the composed
+> body as `developer_instructions`. An older install (bodies as `.md` plus a
+> roster block in `~/.codex/AGENTS.md`) is retired on the way; anything else in
+> that file is kept. Below is the manual recipe for referencing the catalog
+> instead of copying it.
 
-### Global — Generalist as base for everything
+### Global — a named agent
+
+Create `~/.codex/agents/architect.toml`:
+
+```toml
+name = "architect"
+description = "Senior Architect mentor - guidance on architecture, tradeoffs, design reviews, and learning paths."
+developer_instructions = '''
+Read /Users/you/Developer/local-agents/architect/AGENTS.md and fully adopt it:
+identity, judgment model, and escalation ladder. It inherits
+/Users/you/Developer/local-agents/generalist/AGENTS.md — read that too.
+Load the skills it references when their triggers fire.
+'''
+```
+
+For an `access: read` agent (`visionary`, `eng-manager`), add
+`sandbox_mode = "read-only"`. For a `full` agent leave `sandbox_mode` out, so it
+inherits the sandbox you chose for the session. Measured on codex-cli 0.144.5:
+
+| How the session gets its sandbox | read-only agent | full agent |
+|---|---|---|
+| `config.toml` or `-c sandbox_mode="workspace-write"` | refuses to write | writes |
+| `--sandbox workspace-write` flag | **writes** — the flag overrides every agent file | writes |
+| nothing (`codex exec` defaults to read-only) | refuses | refuses (inherits read-only) |
+
+So give the session write access through config, not through the `--sandbox`
+flag. A project's own `.codex/config.toml` only applies once Codex trusts the
+project.
+
+### Global — generalist as the base for everything
 
 In `~/.codex/AGENTS.md` (personal guidelines, applies everywhere):
 
@@ -199,7 +231,7 @@ triggers fire.
 
 ### Per Project — The role that repository needs
 
-In `AGENTS.md` at repository root:
+Either a TOML agent in `.codex/agents/`, or, in `AGENTS.md` at repository root:
 
 ```markdown
 For this repository, additionally adopt

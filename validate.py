@@ -426,8 +426,8 @@ def check_orchestration_roster(cat: Catalog):
 
 # Prose that assumes the host can *invoke* another agent. Handoffs are written
 # as ownership ("belongs to X", "goes to X") because that reads correctly
-# everywhere: Claude Code, Kiro and Antigravity have named agents, Codex has
-# none and reaches identities through a roster file. "Delegate to the X agent"
+# everywhere: most hosts have named agents, but the shared folder has none and
+# reaches identities through a roster file. "Delegate to the X agent"
 # describes a button that does not exist in every target.
 INVOCATION_PATTERNS = [
     r"\buse the [a-z-]+ agent\b",
@@ -558,6 +558,31 @@ def check_installer(cat: Catalog):
             if proc.returncode != 0:
                 errs.append(f"install.py {' '.join(args)} exited {proc.returncode}: "
                             f"{proc.stderr.strip()[-200:]}")
+
+        # Codex agents are TOML, and `sandbox_mode = "read-only"` is the only
+        # enforcement of the read tier there (measured on codex-cli 0.144.5).
+        # CI pins Python 3.9, which has no TOML parser, so check the shape the
+        # renderer promises and leave parsing to the measured run.
+        codex_dir = Path(home) / ".codex" / "agents"
+        for agent, text in cat.agents.items():
+            f = codex_dir / f"{agent}.toml"
+            if not f.is_file():
+                errs.append(f"install.py --tool codex wrote no {f.name}")
+                continue
+            toml = f.read_text(encoding="utf-8")
+            reads_only = bool(re.search(r"^access:\s*read\s*$", text, re.M))
+            if not toml.startswith(f'name = "{agent}"\n'):
+                errs.append(f"{f.name}: must open with name = \"{agent}\"")
+            if 'description = "' not in toml:
+                errs.append(f"{f.name}: missing description")
+            if not re.search(r"^developer_instructions = ('{3}\n|\")", toml, re.M):
+                errs.append(f"{f.name}: missing developer_instructions")
+            if ('sandbox_mode = "read-only"' in toml) != reads_only:
+                errs.append(f"{f.name}: sandbox_mode read-only must appear exactly "
+                            f"when the agent declares access: read")
+        if (codex_dir.parent / "AGENTS.md").is_file() and "BEGIN:local-agents" in \
+                (codex_dir.parent / "AGENTS.md").read_text(encoding="utf-8"):
+            errs.append("install.py --tool codex still writes a roster into ~/.codex/AGENTS.md")
 
         # A host that reads several skill dirs may load ANY copy of a skill, so
         # one stale copy must surface in --status under that host, and

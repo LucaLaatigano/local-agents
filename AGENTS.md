@@ -131,9 +131,9 @@ Rules for this catalog:
     `access: read` or `access: full`, and `install.py` renders it into what
     each host can enforce: a tool allowlist in Claude Code, `permission` in
     opencode, tool tags in Kiro, a `tools:` allowlist per tier in Antigravity
-    (written for `full` too: an agent without one gets almost no tools), a
-    stated limit in the Codex roster. `read` is for the two agents whose
-    deliverable is never an artifact — `visionary`
+    (written for `full` too: an agent without one gets almost no tools),
+    `sandbox_mode` in Codex, a stated limit in the shared roster. `read` is
+    for the two agents whose deliverable is never an artifact — `visionary`
     (a verdict) and `eng-manager` (a route) — for whom building is a ROLE
     error, not a rarity; they read, search, fetch and delegate. Everyone else
     is `full`: an architect who writes the example or the spike, a product

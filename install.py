@@ -69,7 +69,7 @@ AGY_AGENTS = HOME / ".gemini/config/agents"
 # To add a tool: append one Tool(...) below. That's it — UNLESS the tool needs
 # a brand-new agent-file FORMAT, in which case also add a branch in
 # render_agent(). Existing styles: "claude_md", "opencode_md", "kiro_json",
-# "antigravity_md".
+# "antigravity_md", "codex_toml", "roster_md".
 # A tool with agents_dir=None has no named-agent concept (installing an "agent"
 # there installs its skills and prints an AGENTS.md snippet to add by hand).
 # --------------------------------------------------------------------------- #
@@ -80,7 +80,7 @@ class Tool:
     config_root: Path            # existence of this dir => tool is installed
     skills_dir: Path
     agents_dir: Optional[Path]   # None => no place to put agent bodies at all
-    agent_style: Optional[str]   # "claude_md" | "opencode_md" | "kiro_json" | "roster_md" | "antigravity_md"
+    agent_style: Optional[str]   # "claude_md" | "opencode_md" | "kiro_json" | "roster_md" | "antigravity_md" | "codex_toml"
     project_dir: str             # per-repo config dir, relative to the project root
     roster_file: Optional[Path] = None   # roster destination; defaults to config_root/AGENTS.md
     # Skill dirs the HOST also reads besides skills_dir — global paths, and
@@ -94,10 +94,10 @@ class Tool:
         return self.roster_file or (self.config_root / "AGENTS.md")
 
 
-# `roster_md` is for tools with no named-agent concept (Codex, and the shared
-# folder). The bodies still get copied — self-contained, same as everywhere else
-# — and a short roster is written into the tool's AGENTS.md pointing at them, so
-# the identities are discoverable without paying 14 full prompts of context on
+# `roster_md` is for tools with no named-agent concept (the shared folder). The
+# bodies still get copied — self-contained, same as everywhere else — and a
+# short roster is written into the tool's AGENTS.md pointing at them, so the
+# identities are discoverable without paying every full prompt of context on
 # every session.
 TOOLS = [
     Tool("claude", "Claude Code",
@@ -117,10 +117,10 @@ TOOLS = [
          HOME / ".kiro", HOME / ".kiro/skills",
          HOME / ".kiro/agents", "kiro_json", ".kiro"),
     # Documented, not measured: Codex scans `~/.agents/skills`, and per project
-    # `.agents/skills`.
+    # `.agents/skills`. Agents are TOML files (measured on codex-cli 0.144.5).
     Tool("codex", "Codex",
          CODEX_ROOT, CODEX_ROOT / "skills",
-         CODEX_ROOT / "agents", "roster_md", ".codex",
+         CODEX_ROOT / "agents", "codex_toml", ".codex",
          also_reads=(HOME / ".agents/skills",),
          project_also_reads=(".agents/skills",)),
     Tool("antigravity", "Antigravity CLI",
@@ -136,9 +136,10 @@ def project_tool(tool: Tool, root: Path) -> Tool:
     """Retarget a tool at a project checkout instead of the user's home.
 
     Every supported tool reads a per-repo config dir, so the same rendering
-    works — only the destination moves. Codex is the exception worth knowing:
-    per-project it reads `AGENTS.md` from the REPO ROOT, not from inside
-    `.codex/`, so the roster goes there."""
+    works — only the destination moves. A roster tool's roster goes to the REPO
+    ROOT `AGENTS.md`, which is where Codex reads it per project; for Codex that
+    path is still recorded, because it is where an older install left its
+    roster (see retire_roster_install)."""
     base = root / tool.project_dir
     return replace(
         tool,
@@ -146,7 +147,7 @@ def project_tool(tool: Tool, root: Path) -> Tool:
         config_root=base,
         skills_dir=base / "skills",
         agents_dir=(base / "agents") if tool.agents_dir else None,
-        roster_file=(root / "AGENTS.md") if tool.agent_style == "roster_md" else None,
+        roster_file=(root / "AGENTS.md") if tool.agent_style in ("roster_md", "codex_toml") else None,
         also_reads=tuple(root / rel for rel in tool.project_also_reads),
     )
 
@@ -169,8 +170,13 @@ def refuse_shared_project_dir(tool: Tool, agents: dict):
 def shared_dir_owner(tool: Tool, agents: dict) -> Optional[str]:
     """The key of ANOTHER tool whose agent files already occupy this tool's
     agents_dir, told apart by format (frontmatter or not); None if the dir is
-    empty or already this tool's."""
-    if not tool.agents_dir or not tool.agents_dir.is_dir():
+    empty, already this tool's, or not shared with any other tool — a tool
+    alone in its dir may find an older install of ITSELF there, in another
+    format (Codex's pre-TOML roster bodies), and that is a migration, not a
+    clash."""
+    neighbours = [t.key for t in TOOLS
+                  if t.key != tool.key and t.project_dir == tool.project_dir]
+    if not neighbours or not tool.agents_dir or not tool.agents_dir.is_dir():
         return None
     wants_frontmatter = tool.agent_style != "roster_md"
     for name in sorted(agents):
@@ -179,9 +185,15 @@ def shared_dir_owner(tool: Tool, agents: dict) -> Optional[str]:
             continue
         if f.read_text(encoding="utf-8").startswith("---\n") == wants_frontmatter:
             return None
-        return next((t.key for t in TOOLS if t.key != tool.key
-                     and t.project_dir == tool.project_dir), "another tool")
+        return neighbours[0]
     return None
+
+
+AGENT_SUFFIX = {"kiro_json": ".json", "codex_toml": ".toml"}
+
+
+def agent_suffix(tool: Tool) -> str:
+    return AGENT_SUFFIX.get(tool.agent_style, ".md")
 
 
 ROSTER_BEGIN = "<!-- BEGIN:local-agents -->"
@@ -398,6 +410,24 @@ def render_agent(tool: Tool, name: str, body: str, description: str,
             "resources": [f"skill://~/.kiro/skills/{s}/SKILL.md" for s in skill_names],
         }
         return tool.agents_dir / f"{name}.json", json.dumps(obj, indent=2, ensure_ascii=False)
+    if tool.agent_style == "codex_toml":
+        # Measured on codex-cli 0.144.5: Codex loads one TOML per agent and
+        # honours `sandbox_mode = "read-only"` when the session's sandbox comes
+        # from config (`config.toml`, `-c sandbox_mode=...`), but the `--sandbox`
+        # flag beats every agent file. `full` leaves sandbox_mode out, so the
+        # agent inherits the sandbox the user chose instead of raising it.
+        sandbox = 'sandbox_mode = "read-only"\n' if tier == "read" else ""
+        # A literal string keeps the markdown byte-for-byte; it cannot hold
+        # `'''` and a trailing quote would merge with the delimiter, so those
+        # bodies fall back to an escaped basic string.
+        if "'''" in body or body.endswith("'"):
+            instructions = f"developer_instructions = {json.dumps(body, ensure_ascii=False)}\n"
+        else:
+            instructions = f"developer_instructions = '''\n{body}'''\n"
+        toml = (f"name = {json.dumps(name)}\n"
+                f"description = {json.dumps(desc, ensure_ascii=False)}\n"
+                f"{sandbox}{instructions}")
+        return tool.agents_dir / f"{name}.toml", toml
     if tool.agent_style == "roster_md":
         # No frontmatter: nothing parses it here. The lead paragraph states what
         # the file is so a model that opens it knows immediately — including
@@ -684,7 +714,7 @@ def install_agent(agent: Agent, tool: Tool, policy: str, interactive: bool,
     meta, desc, body = compose_agent(agent, inherited)
 
     final = resolve_name(tool.agents_dir, agent.name,
-                         ".json" if tool.agent_style == "kiro_json" else ".md",
+                         agent_suffix(tool),
                          policy, interactive)
     if final is None:
         print("    · agent file skipped")
@@ -700,6 +730,49 @@ def install_agent(agent: Agent, tool: Tool, policy: str, interactive: bool,
     # passes roster=False and writes it once at the end instead.
     if roster and tool.agent_style == "roster_md":
         write_roster(tool, agents, [final], dry_run)
+    if roster:
+        retire_roster_install(tool, agents, dry_run)
+
+
+ROSTER_BODY_HEAD = "# `{name}` agent\n"
+
+
+def retire_roster_install(tool: Tool, agents: dict, dry_run: bool):
+    """Codex used to get a roster install (catalog bodies as `.md` plus a block
+    in AGENTS.md); it now has named TOML agents, so the old copy would sit next
+    to the new one and the roster would keep pointing at it. Remove only what
+    the catalog wrote: `.md` bodies that open with the roster header, and the
+    marker block. Per project the root AGENTS.md block is shared with the
+    `shared` tool's install, so it stays if that install is present."""
+    if tool.agent_style != "codex_toml" or not tool.agents_dir or not tool.agents_dir.is_dir():
+        return
+    for name in sorted(agents):
+        old = tool.agents_dir / f"{name}.md"
+        if old.is_file() and old.read_text(encoding="utf-8").startswith(
+                ROSTER_BODY_HEAD.format(name=name)):
+            print(f"    retire → {old} (pre-TOML roster body)")
+            if not dry_run:
+                old.unlink()
+    roster = tool.roster
+    if not roster.is_file():
+        return
+    text = roster.read_text(encoding="utf-8")
+    if ROSTER_BEGIN not in text or ROSTER_END not in text:
+        return
+    shared_bodies = roster.parent / ".agents" / "agents"
+    if roster.parent != tool.config_root and any(
+            f.read_text(encoding="utf-8").startswith("# `")
+            for f in shared_bodies.glob("*.md")):
+        print(f"    keep   → roster block in {roster}: the shared install still uses it")
+        return
+    rest = (text[:text.index(ROSTER_BEGIN)]
+            + text[text.index(ROSTER_END) + len(ROSTER_END):]).strip()
+    print(f"    retire → roster block in {roster}")
+    if not dry_run:
+        if rest:
+            roster.write_text(rest + "\n", encoding="utf-8")
+        else:
+            roster.unlink()
 
 
 def short_description(agent: Agent) -> str:
@@ -884,6 +957,7 @@ def install_suite(tool: Tool, policy: str, interactive: bool, dry_run: bool,
         print("  — roster (no named-agent slot: the bodies above are indexed "
               "in AGENTS.md) —")
         write_roster(tool, agents, sorted(agents), dry_run)
+    retire_roster_install(tool, agents, dry_run)
 
     write_manifest(tool, catalog, dry_run)
 
@@ -1039,7 +1113,7 @@ def print_status(agents, skills_by_name, project=None, catalog=None):
         if tool.agents_dir is None:
             print("    agents   (this tool has no place for agent bodies)")
             continue
-        suffix = ".json" if tool.agent_style == "kiro_json" else ".md"
+        suffix = agent_suffix(tool)
         on_disk = ({p.stem for p in tool.agents_dir.glob(f"*{suffix}")}
                    if tool.agents_dir.exists() else set())
         a_present = sorted(on_disk & set(agents))

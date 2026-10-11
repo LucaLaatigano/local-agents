@@ -132,12 +132,19 @@ Where each tool lands:
 | Claude Code | `~/.claude/` | `.claude/agents/` and `.claude/skills/` |
 | opencode | `~/.config/opencode/` | `.opencode/agents/` and `.opencode/skills/` |
 | Kiro CLI | `~/.kiro/` | `.kiro/agents/` and `.kiro/skills/` |
-| Codex | `~/.codex/` | `.codex/` **+ the roster in the root `AGENTS.md`** |
+| Codex | `~/.codex/` | `.codex/agents/` and `.codex/skills/` |
 | Antigravity CLI | `~/.gemini/antigravity-cli/skills/` + `~/.gemini/config/agents/` | `.agents/agents/` and `.agents/skills/` |
 
-Codex is the special case: per-project it reads `AGENTS.md` from the repository
-root, not inside `.codex/`. The roster is written there between markers — anything
-the team already has in that file is preserved.
+`shared` is the special case: it has no named agents, so per project its roster
+goes to the root `AGENTS.md`, between markers — anything the team already has in
+that file is preserved.
+
+Codex used to be installed the same way. It now loads named agents from TOML
+files, so the installer writes `agents/{name}.toml` and **retires the old
+install** it finds: `.md` bodies that open with the roster header, and the
+roster block (the file is deleted if nothing else was in it). Per project that
+block is shared with `--tool shared`; if a shared install is present the block
+stays, because it still serves it.
 
 Antigravity splits the other way: globally, skills live under the CLI's own
 `~/.gemini/antigravity-cli/` while subagents live in `~/.gemini/config/agents/`,
@@ -176,8 +183,11 @@ The installed copy is not identical to the catalog file; three differences are d
    or `access: full`. In Claude Code that is a `tools:` allowlist; in opencode,
    `permission`; in Kiro, `tools` tags; in Antigravity, a `tools:` allowlist per
    tier (written for `full` too, because an agent without one gets almost no
-   tools); in Codex, a lead note in the header because the host has no
-   tool-level enforcement. What no host can express by tool name remains a
+   tools); in Codex, `sandbox_mode = "read-only"` for the read tier — which
+   holds when the session's sandbox comes from config (`config.toml` or
+   `-c sandbox_mode=...`), but not with the `--sandbox` flag, which overrides
+   every agent file (measured on codex-cli 0.144.5); in `shared`, a lead note in the header because nothing
+   there can enforce it. What no host can express by tool name remains a
    behavioral prompt promise guarded by the harness.
 
 The second point arose from a real trace: an agent searched for its own skills,
@@ -274,7 +284,7 @@ What each label means:
 | `stale` | Installed but **differs** from the catalog — needs reinstallation |
 | `missing` | Present in catalog but missing from tool |
 | `foreign (untouched)` | User-created, outside catalog. The installer never touches it |
-| `roster: N rows` | Codex, shared: rows in `AGENTS.md`. Warns if count differs from bodies |
+| `roster: N rows` | shared: rows in `AGENTS.md`. Warns if count differs from bodies |
 | `shadowing` | The host reads this skill from more than one dir and one copy is stale — names the dir and the command that refreshes it |
 
 `stale` is computed by **content**, not timestamps: skills and agents are
@@ -382,12 +392,12 @@ In interactive mode, a collision prompts you to choose overwrite, rename, or ski
 | Claude Code (`claude`) | `~/.claude/agents/{name}.md` | `~/.claude/skills/{name}/` |
 | opencode (`opencode`) | `~/.config/opencode/agents/{name}.md` | `~/.config/opencode/skills/{name}/` |
 | Kiro CLI (`kiro`) | `~/.kiro/agents/{name}.json` | `~/.kiro/skills/{name}/` |
-| Codex (`codex`) | `~/.codex/agents/{name}.md` + roster in `~/.codex/AGENTS.md` | `~/.codex/skills/{name}/` |
+| Codex (`codex`) | `~/.codex/agents/{name}.toml` | `~/.codex/skills/{name}/` |
 | Antigravity CLI (`antigravity`) | `~/.gemini/config/agents/{name}.md` | `~/.gemini/antigravity-cli/skills/{name}/` |
 | Shared (`shared`) | `~/.agents/agents/{name}.md` + roster in `~/.agents/AGENTS.md` | `~/.agents/skills/{name}/` (skills read by opencode + Codex; opencode does not read its agents) |
 
-**Note on Codex:** It has no named subagent slots like Claude Code,
-so the script addresses this in two parts: it copies the bodies into `agents/{name}.md`
+**Note on `shared`:** It is not a host, so nothing gives it named subagent
+slots; the script addresses this in two parts: it copies the bodies into `agents/{name}.md`
 and writes a **roster** (a one-line summary table per agent) into `AGENTS.md`, which
 the host loads automatically. The model consults the roster and opens the relevant
 agent body. Inlining all 15 bodies upfront would consume ~110 KB of context per session;
@@ -434,5 +444,5 @@ Tool("mytool", "My Tool",
 ```
 
 This is sufficient **if the tool uses an existing format** (`claude_md`,
-`opencode_md`, `kiro_json`, `antigravity_md`, `roster_md`). If it requires a NEW format,
+`opencode_md`, `kiro_json`, `antigravity_md`, `codex_toml`, `roster_md`). If it requires a NEW format,
 add a corresponding branch in `render_agent()`.

@@ -94,11 +94,11 @@ catalog installs into several tools, each with its own layout, so a hardcoded
 | Claude Code | `~/.claude/agents/{name}.md` | `~/.claude/skills/{name}/` |
 | opencode | `~/.config/opencode/agents/{name}.md` | `~/.config/opencode/skills/{name}/` |
 | Kiro CLI | `~/.kiro/agents/{name}.json` | `~/.kiro/skills/{name}/` |
-| Codex | `~/.codex/agents/{name}.md` + roster in `~/.codex/AGENTS.md` | `~/.codex/skills/{name}/` |
+| Codex | `~/.codex/agents/{name}.toml` | `~/.codex/skills/{name}/` |
 | Antigravity CLI | `~/.gemini/config/agents/{name}.md` | `~/.gemini/antigravity-cli/skills/{name}/` |
 | Shared | `~/.agents/agents/{name}.md` + roster in `~/.agents/AGENTS.md` | `~/.agents/skills/{name}/` (skills read by opencode + Codex; opencode does not read its agents) |
 
-Codex has no named-agent concept, so the installer writes the bodies plus a
+The shared folder has no named-agent concept, so the installer writes the bodies plus a
 short roster into its `AGENTS.md` — the identities stay discoverable without
 putting <!--n:agents-->15<!--/n--> full prompts (~<!--n:agents-kb-->100<!--/n--> KB) into every session's context.
 
@@ -107,8 +107,8 @@ from, so `--status` can report how far behind an installed copy is and which
 skills moved. Nothing is versioned by hand — git history is the changelog.
 
 Add `--project PATH` to install into a repo instead of your home config
-(`.claude/`, `.opencode/`, `.kiro/`, `.codex/` + the root `AGENTS.md`, `.agents/`
-for Antigravity), so the
+(`.claude/`, `.opencode/`, `.kiro/`, `.codex/`, `.agents/` for Antigravity, or
+`.agents/` + the root `AGENTS.md` for shared), so the
 setup travels with the code and works for teammates and CI. Commit what it
 writes — that is the point — and `--status --project` tells you whether the
 committed copy still matches the catalog.
