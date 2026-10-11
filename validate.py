@@ -26,6 +26,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 # Ensure UTF-8 I/O across platforms (particularly on Windows)
@@ -34,16 +35,6 @@ if sys.platform == "win32":
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     if hasattr(sys.stderr, "reconfigure"):
         sys.stderr.reconfigure(encoding="utf-8", errors="replace")
-
-_orig_read_text = Path.read_text
-def _utf8_read_text(self, encoding="utf-8", errors=None):
-    return _orig_read_text(self, encoding=encoding, errors=errors)
-Path.read_text = _utf8_read_text
-
-_orig_write_text = Path.write_text
-def _utf8_write_text(self, data, encoding="utf-8", errors=None, newline=None):
-    return _orig_write_text(self, data, encoding=encoding, errors=errors, newline=newline)
-Path.write_text = _utf8_write_text
 
 try:
     import yaml
@@ -94,9 +85,9 @@ class Catalog:
         self.agents = {}   # name -> text of AGENTS.md
         self.skills = {}   # skill-name -> (agent, path, text)
         for p in sorted(root.glob("*/AGENTS.md")):
-            self.agents[p.parent.name] = p.read_text()
+            self.agents[p.parent.name] = p.read_text(encoding="utf-8")
         for p in sorted(root.glob("*/skills/*/SKILL.md")):
-            self.skills[p.parent.name] = (p.parent.parent.parent.name, p, p.read_text())
+            self.skills[p.parent.name] = (p.parent.parent.parent.name, p, p.read_text(encoding="utf-8"))
 
     def owner(self, skill: str):
         return self.skills[skill][0] if skill in self.skills else None
@@ -164,7 +155,7 @@ def check_links(cat: Catalog):
         src = cat.root / rel
         if not src.exists():
             continue
-        for m in re.finditer(r"\]\(([^)\s]+?\.md)(?:#[^)]*)?\)", src.read_text()):
+        for m in re.finditer(r"\]\(([^)\s]+?\.md)(?:#[^)]*)?\)", src.read_text(encoding="utf-8")):
             link = m.group(1)
             if link.startswith(("http://", "https://", "/")) or link.startswith("~"):
                 continue
@@ -251,7 +242,7 @@ def check_language_register(cat: Catalog):
 
 def check_agent_rows(cat: Catalog):
     """Root AGENTS.md rule 4: every agent gets a row in the index table."""
-    rows = set(re.findall(r"^\| `([a-z-]+)`", (cat.root / "AGENTS.md").read_text(), re.M))
+    rows = set(re.findall(r"^\| `([a-z-]+)`", (cat.root / "AGENTS.md").read_text(encoding="utf-8"), re.M))
     errs = [f"AGENTS.md: no index row for agent `{a}`" for a in sorted(set(cat.agents) - rows)]
     errs += [f"AGENTS.md: index row `{r}` has no agent directory"
              for r in sorted(rows - set(cat.agents))]
@@ -340,8 +331,8 @@ def check_kiro_contract(cat: Catalog):
     compared them. Kiro's tool tags are a closed set — an unknown one is a config
     error, not a no-op — so doc and code have to agree."""
     errs = []
-    usage = (cat.root / "USAGE.md").read_text()
-    install = (cat.root / "install.py").read_text()
+    usage = (cat.root / "USAGE.md").read_text(encoding="utf-8")
+    install = (cat.root / "install.py").read_text(encoding="utf-8")
 
     def arrays(found, label):
         if not found:
@@ -477,7 +468,7 @@ def check_reference_roster(cat: Catalog):
     can't be derived (the criollo one-liner) and this check keeps the roster
     honest: the deep content lives in the agent files, where it maintains
     itself."""
-    text = (cat.root / "REFERENCE_.md").read_text()
+    text = (cat.root / "REFERENCE_.md").read_text(encoding="utf-8")
     rows = {m[0]: int(m[1]) for m in
             re.findall(r"\[`([a-z-]+)`\]\([a-z-]+/AGENTS\.md\).*?\|\s*(\d+)\s*\|", text)}
     errs = []
@@ -495,7 +486,7 @@ def check_reference_roster(cat: Catalog):
 def check_readme_counts(cat: Catalog):
     """The README roster mixes curated prose with counts, so it is validated
     rather than generated — generation would overwrite the prose."""
-    text = (cat.root / "README.md").read_text()
+    text = (cat.root / "README.md").read_text(encoding="utf-8")
     claimed = {m[0]: int(m[1]) for m in
                re.findall(r"\[`([a-z-]+)`\]\([a-z-]+/AGENTS\.md\).*?\|\s*(\d+)\s*\|", text)}
     errs = []
@@ -509,16 +500,26 @@ def check_readme_counts(cat: Catalog):
 
 
 def check_installer(cat: Catalog):
-    """Smoke test: the installer must still discover and render everything."""
+    """Smoke test: the installer must still discover and render everything.
+    A dry run writes nothing, so a defect that only shows up when a file is
+    written passes it — the real install into a throwaway HOME is what catches
+    that."""
     errs = []
-    runs = [["--list"]] + [["--all", "--tool", t, "--dry-run"]
-                           for t in ("claude", "opencode", "kiro", "codex", "gemini", "shared")]
-    for args in runs:
-        proc = subprocess.run([sys.executable, str(cat.root / "install.py"), *args],
-                              capture_output=True, text=True)
-        if proc.returncode != 0:
-            errs.append(f"install.py {' '.join(args)} exited {proc.returncode}: "
-                        f"{proc.stderr.strip()[:200]}")
+    tools = ("claude", "opencode", "kiro", "codex", "gemini", "shared")
+    with tempfile.TemporaryDirectory() as home:
+        env = {k: v for k, v in os.environ.items()
+               if k not in ("CLAUDE_CONFIG_DIR", "CODEX_HOME", "GEMINI_CONFIG_DIR", "GEMINI_HOME")}
+        env.update(HOME=home, USERPROFILE=home)
+        runs = ([["--list"]]
+                + [["--all", "--tool", t, "--dry-run"] for t in tools]
+                + [["--all", "--tool", t, "--on-conflict", "overwrite"] for t in tools])
+        for args in runs:
+            proc = subprocess.run([sys.executable, str(cat.root / "install.py"), *args],
+                                  capture_output=True, text=True, env=env,
+                                  stdin=subprocess.DEVNULL)
+            if proc.returncode != 0:
+                errs.append(f"install.py {' '.join(args)} exited {proc.returncode}: "
+                            f"{proc.stderr.strip()[-200:]}")
     return errs
 
 
@@ -683,7 +684,7 @@ def apply_blocks(cat: Catalog, write: bool):
     path = cat.root / "GRAPH.md"
     if not path.exists():
         return ["GRAPH.md: file missing"]
-    text = original = path.read_text()
+    text = original = path.read_text(encoding="utf-8")
     stale = []
     for name, fn in GENERATORS.items():
         pattern = re.compile(
@@ -698,7 +699,7 @@ def apply_blocks(cat: Catalog, write: bool):
             stale.append(f"GRAPH.md: block `{name}` is stale — run ./validate.py --write")
         text = text[:m.start()] + m.group(1) + fresh + m.group(3) + text[m.end():]
     if write and text != original:
-        path.write_text(text)
+        path.write_text(text, encoding="utf-8")
         return []
     return [] if write else stale
 
@@ -749,7 +750,7 @@ def apply_values(cat: Catalog, write: bool):
         path = cat.root / fname
         if not path.exists():
             continue
-        text = original = path.read_text()
+        text = original = path.read_text(encoding="utf-8")
 
         def sub(m):
             key, current = m.group(1), m.group(2)
@@ -763,7 +764,7 @@ def apply_values(cat: Catalog, write: bool):
             return f"<!--n:{key}-->{fresh}<!--/n-->"
         text = pattern.sub(sub, text)
         if write and text != original:
-            path.write_text(text)
+            path.write_text(text, encoding="utf-8")
     return [] if write else stale
 
 
@@ -855,7 +856,7 @@ CHECKS = [
     ("kiro-contract", "Kiro agent JSON matches the recipe in USAGE.md", check_kiro_contract),
     ("readme-counts", "README roster matches reality", check_readme_counts),
     ("reference-roster", "REFERENCE_.md lists every agent (Spanish guide)", check_reference_roster),
-    ("installer", "install.py --list and --dry-run succeed", check_installer),
+    ("installer", "install.py --list, --dry-run and a real install succeed", check_installer),
 ]
 
 

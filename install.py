@@ -38,16 +38,6 @@ if sys.platform == "win32":
     if hasattr(sys.stderr, "reconfigure"):
         sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
-_orig_read_text = Path.read_text
-def _utf8_read_text(self, encoding="utf-8", errors=None):
-    return _orig_read_text(self, encoding=encoding, errors=errors)
-Path.read_text = _utf8_read_text
-
-_orig_write_text = Path.write_text
-def _utf8_write_text(self, data, encoding="utf-8", errors=None, newline=None):
-    return _orig_write_text(self, data, encoding=encoding, errors=errors, newline=newline)
-Path.write_text = _utf8_write_text
-
 HOME = Path.home()
 
 
@@ -425,7 +415,7 @@ def copy_skill(skill: Skill, tool: Tool, name: str, dry_run: bool):
     shutil.copytree(skill.path, dest)
     md = dest / "SKILL.md"
     if md.exists():
-        md.write_text(render_skill(md.read_text(), skill.agent, name))
+        md.write_text(render_skill(md.read_text(encoding="utf-8"), skill.agent, name), encoding="utf-8")
     return name
 
 
@@ -474,10 +464,10 @@ def resolve_deps(agent: Agent, agents: dict, skills_by_name: dict):
     skill_names = set()
 
     def walk(ag: Agent):
-        texts = [ag.agents_md.read_text()]
+        texts = [ag.agents_md.read_text(encoding="utf-8")]
         for sk in ag.skills:
             skill_names.add(sk.name)
-            texts.append((sk.path / "SKILL.md").read_text())
+            texts.append((sk.path / "SKILL.md").read_text(encoding="utf-8"))
         for txt in texts:
             inh, sref = scan_refs(txt)
             skill_names.update(sref)
@@ -574,7 +564,7 @@ def compose_agent(agent: Agent, inherited: list):
     """Build the agent body exactly as it gets installed: own body plus the
     inherited CORE.md sections. Shared with `--status`, which re-renders to
     detect drift — if the two ever diverged, the staleness report would lie."""
-    meta, body = split_frontmatter(agent.agents_md.read_text())
+    meta, body = split_frontmatter(agent.agents_md.read_text(encoding="utf-8"))
     desc = meta.get("description") or agent_description(body)  # before inlining
     if inherited:
         parts = [body, "\n\n---\n\n# Inherited context (installed automatically)\n"]
@@ -582,9 +572,9 @@ def compose_agent(agent: Agent, inherited: list):
             core = pa.path / "CORE.md"
             if core.exists():
                 # curated, condensed essence — preferred over a full-file dump
-                parts.append(f"\n{core.read_text().strip()}\n")
+                parts.append(f"\n{core.read_text(encoding='utf-8').strip()}\n")
             else:
-                _, pbody = split_frontmatter(pa.agents_md.read_text())
+                _, pbody = split_frontmatter(pa.agents_md.read_text(encoding="utf-8"))
                 parts.append(f"\n## Inherited from `{pa.name}` (full)\n\n{pbody}\n")
         body = "".join(parts)
     return meta, desc, deref_skill_links(body)
@@ -637,7 +627,7 @@ def install_agent(agent: Agent, tool: Tool, policy: str, interactive: bool,
     print(f"    agent  → {dest}")
     if not dry_run:
         dest.parent.mkdir(parents=True, exist_ok=True)
-        dest.write_text(contents)
+        dest.write_text(contents, encoding="utf-8")
 
     # Tools with no named-agent concept only find the body through the roster,
     # so writing one without the other leaves a half-install. The suite path
@@ -649,7 +639,7 @@ def install_agent(agent: Agent, tool: Tool, policy: str, interactive: bool,
 def short_description(agent: Agent) -> str:
     """One line for the roster: the curated frontmatter description up to its
     first sentence, or the body's opening sentence when there is no frontmatter."""
-    meta, body = split_frontmatter(agent.agents_md.read_text())
+    meta, body = split_frontmatter(agent.agents_md.read_text(encoding="utf-8"))
     desc = meta.get("description") or agent_description(body)
     desc = desc.split("<example>")[0].strip()
     first = re.split(r"(?<=[.!?])\s", " ".join(desc.split()))[0]
@@ -685,7 +675,7 @@ def write_roster(tool: Tool, agents: dict, just_installed: list, dry_run: bool):
              f"{ROSTER_END}")
 
     if dest.exists():
-        current = dest.read_text()
+        current = dest.read_text(encoding="utf-8")
         if ROSTER_BEGIN in current and ROSTER_END in current:
             head = current[:current.index(ROSTER_BEGIN)]
             tail = current[current.index(ROSTER_END) + len(ROSTER_END):]
@@ -699,7 +689,7 @@ def write_roster(tool: Tool, agents: dict, just_installed: list, dry_run: bool):
     print(f"    {verb} → {dest}")
     if not dry_run:
         dest.parent.mkdir(parents=True, exist_ok=True)
-        dest.write_text(contents)
+        dest.write_text(contents, encoding="utf-8")
 
 
 # --------------------------------------------------------------------------- #
@@ -748,7 +738,7 @@ def write_manifest(tool: Tool, catalog: Path, dry_run: bool):
         "catalog_dirty": dirty,
         "catalog_path": str(catalog.resolve()),
         "installed_at": datetime.now().astimezone().isoformat(timespec="seconds"),
-    }, indent=2) + "\n")
+    }, indent=2) + "\n", encoding="utf-8")
 
 
 def read_manifest(tool: Tool):
@@ -756,7 +746,7 @@ def read_manifest(tool: Tool):
     if not path.exists():
         return None
     try:
-        return json.loads(path.read_text())
+        return json.loads(path.read_text(encoding="utf-8"))
     except (ValueError, OSError):
         return None
 
@@ -925,8 +915,8 @@ def print_status(agents, skills_by_name, project=None, catalog=None):
                     continue
                 present.append(d.name)
                 a, b = src.path / "SKILL.md", d / "SKILL.md"
-                fresh = render_skill(a.read_text(), src.agent, d.name)
-                if not b.exists() or fresh != b.read_text():
+                fresh = render_skill(a.read_text(encoding="utf-8"), src.agent, d.name)
+                if not b.exists() or fresh != b.read_text(encoding="utf-8"):
                     stale.append(d.name)
         missing = sorted(set(skills_by_name) - set(present))
         print(f"    skills   {len(present)}/{len(skills_by_name)} from catalog"
@@ -954,7 +944,7 @@ def print_status(agents, skills_by_name, project=None, catalog=None):
             meta, desc, body = compose_agent(agents[name], inherited)
             dest, fresh = render_agent(tool, name, body, desc,
                                        sorted(s.name for s in dep_skills), meta)
-            if not dest.exists() or dest.read_text() != fresh:
+            if not dest.exists() or dest.read_text(encoding="utf-8") != fresh:
                 a_stale.append(name)
         print(f"    agents   {len(a_present)}/{len(agents)} from catalog"
               f"{f' · {len(a_stale)} stale' if a_stale else ''}"
@@ -974,7 +964,7 @@ def print_status(agents, skills_by_name, project=None, catalog=None):
                 print("      roster: MISSING — the bodies above are unreachable "
                       "without it")
             else:
-                rows = len(re.findall(r"^\| `[a-z-]+` \|", roster.read_text(), re.M))
+                rows = len(re.findall(r"^\| `[a-z-]+` \|", roster.read_text(encoding="utf-8"), re.M))
                 mark = "" if rows == len(a_present) else f" (≠ {len(a_present)} bodies)"
                 print(f"      roster: {rows} rows in {roster.name}{mark}")
 
