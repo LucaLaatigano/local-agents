@@ -142,8 +142,13 @@ the team already has in that file is preserved.
 Antigravity splits the other way: globally, skills live under the CLI's own
 `~/.gemini/antigravity-cli/` while subagents live in `~/.gemini/config/agents/`,
 shared with the IDE; per project both go under `.agents/`. That is the same
-directory `--tool shared --project` writes to, so installing both into one repo
-puts the same bodies in one place.
+directory `--tool shared --project` writes to, and the two write the same agent
+paths in different formats: Antigravity needs frontmatter, the shared bodies
+have none. Antigravity does not load a body without frontmatter as an agent,
+and `--agent NAME` then falls back to its main agent without an error. So the
+installer **refuses to mix them in one project**: use one of the two per repo.
+Globally there is no clash — `~/.agents` and Antigravity's directories are
+separate, and Antigravity does not read `~/.agents` at all.
 
 **Project configuration overrides global** if they share a name, so a repo can
 have its own version of an agent without affecting your personal setup.

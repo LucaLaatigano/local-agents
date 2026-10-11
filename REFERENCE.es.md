@@ -64,7 +64,8 @@ Herramientas: `claude`, `opencode`, `kiro`, `codex`, `antigravity`, `shared`.
   escribe un roster en su `AGENTS.md`, respetando lo que ya tengas ahí.
 - **Antigravity** reparte la instalación global en dos lugares: agentes en
   `~/.gemini/config/agents/` y skills en `~/.gemini/antigravity-cli/skills/`.
-  Por proyecto, ambos van bajo `.agents/`.
+  Por proyecto, ambos van bajo `.agents/`, la misma carpeta que usa `shared`,
+  así que en un repo elegí uno de los dos: el instalador no te deja mezclarlos.
 - Cada instalación estampa de qué commit del catálogo salió, así `--status` te
   dice cuántos commits atrás estás y qué cambió.
 
@@ -105,7 +106,7 @@ Tres capas, todas extraídas de los archivos — nada aspiracional.
 
 ## Si vas a agregar o editar algo
 
-1. **Leé las reglas** en [AGENTS.md](AGENTS.md) — son 13 y cada una dice su
+1. **Leé las reglas** en [AGENTS.md](AGENTS.md) — cada una dice su
    porqué. Las que más se olvidan: la identidad de un agente no nombra
    tecnología (eso va en skills), y las skills externas se referencian por
    NOMBRE, nunca por ruta.

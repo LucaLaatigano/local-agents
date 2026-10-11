@@ -54,7 +54,7 @@ PROXIMITY = 140
 CHARACTER_AGENTS = {"visionary", "stark", "security"}
 REGISTER_EXEMPT = {"generalist"}
 
-# Paths that would be a lie in four of the five install targets.
+# Paths that would be a lie in every install target but one.
 HARNESS_PATTERNS = [
     (r"~/\.claude", "Claude Code config path"),
     (r"~/\.config/opencode", "opencode config path"),

@@ -133,6 +133,31 @@ def project_tool(tool: Tool, root: Path) -> Tool:
         roster_file=(root / "AGENTS.md") if tool.agent_style == "roster_md" else None,
     )
 
+def refuse_shared_project_dir(tool: Tool, agents: dict):
+    """Per project, `shared` and `antigravity` both live in `.agents/` and write
+    the SAME agent paths in different formats, so the second install would
+    replace the first's files. Measured on agy 1.3.3: a body without
+    frontmatter is not loaded as an agent, and `--agent NAME` then falls back
+    to agy's main agent without a word. Refuse the mix instead of picking a
+    winner silently. Call only for project installs: globally the two tools
+    use different directories."""
+    if not tool.agents_dir or not tool.agents_dir.is_dir():
+        return
+    wants_frontmatter = tool.agent_style != "roster_md"
+    for name in sorted(agents):
+        f = tool.agents_dir / f"{name}.md"
+        if not f.is_file():
+            continue
+        if f.read_text(encoding="utf-8").startswith("---\n") != wants_frontmatter:
+            other = next((t.key for t in TOOLS if t.key != tool.key
+                          and t.project_dir == tool.project_dir), "another tool")
+            sys.exit(f"refusing to install {tool.key} into {tool.config_root}: it already "
+                     f"holds the {other} install, and both write {tool.agents_dir}/<name>.md "
+                     f"in different formats — the second would silently replace the first. "
+                     f"Use one of them per project, or remove {tool.agents_dir} first.")
+        return
+
+
 ROSTER_BEGIN = "<!-- BEGIN:local-agents -->"
 ROSTER_END = "<!-- END:local-agents -->"
 
@@ -830,8 +855,8 @@ def install_suite(tool: Tool, policy: str, interactive: bool, dry_run: bool,
                       roster=False)
 
     if tool.agent_style == "roster_md":
-        print(f"  — roster ({tool.label} has no named-agent slot, so the bodies "
-              f"above are indexed by hand) —")
+        print("  — roster (no named-agent slot: the bodies above are indexed "
+              "in AGENTS.md) —")
         write_roster(tool, agents, sorted(agents), dry_run)
 
     write_manifest(tool, catalog, dry_run)
@@ -871,6 +896,7 @@ def interactive(agents, all_skills, skills_by_name, policy, dry_run, with_deps, 
     tool = TOOLS[tool_idx]
     if project:
         tool = project_tool(tool, project)
+        refuse_shared_project_dir(tool, agents)
     if not tool.config_root.exists():
         ans = input(f"  {tool.label} doesn't look installed ({tool.config_root} "
                     f"missing). Install anyway? [y/N] ").strip().lower()
@@ -1043,7 +1069,11 @@ def main():
                      "the project that should receive the agents")
 
     def target(tool: Tool) -> Tool:
-        return project_tool(tool, project) if project else tool
+        if not project:
+            return tool
+        tool = project_tool(tool, project)
+        refuse_shared_project_dir(tool, agents)
+        return tool
 
     if args.list:
         print_list(agents, all_skills)
