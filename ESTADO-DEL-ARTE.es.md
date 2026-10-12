@@ -150,7 +150,8 @@ Cómo se midió cada cosa, y cómo repetirlo, está en los comentarios de
 | opencode: el aviso de `shadowing` incluye `.claude/skills` del proyecto, y el comando sugerido lleva `--project` | `6d2b934` |
 | Kiro medido. Descripciones de skills instaladas en una sola línea para todos los hosts (chequeo `skill-descriptions`); herramientas por tier medidas: `read` = read, grep, glob, web_fetch, web_search, subagent; `full` = todas | `6d2b934` |
 | Instalaciones parciales sin links rotos: un link a una skill que no se instaló pasa a ser su nombre, y vuelve a ser link cuando otra instalación la trae (antes: 171 links rotos en las 15 instalaciones de un solo agente; chequeo `partial-installs`) | `797b6b3` |
-| Herencia declarada en `inherits:`; el instalador ignora la prosa. Antes, borrar las frases "reasoning model"/"peer contract" dejaba a los 15 agentes sin herencia; ahora no cambia nada (chequeos `inheritance` e `inheritance-wording`). Instalación idéntica byte a byte en los 6 hosts | este cambio |
+| Herencia declarada en `inherits:`; el instalador ignora la prosa. Antes, borrar las frases "reasoning model"/"peer contract" dejaba a los 15 agentes sin herencia; ahora no cambia nada (chequeos `inheritance` e `inheritance-wording`). Instalación idéntica byte a byte en los 6 hosts | `5f634c5` |
+| Medido: el orden de los CORE no cambia el comportamiento observable. `devops` con el orden actual (Peer Contract → base) y el invertido (base → Peer Contract): 4/4 escenarios en los dos, diferencias dentro de la variación entre corridas (Sonnet como agente y juez, 1 muestra por escenario, runs `20261011-211529` y `20261011-211554` del harness, USD 1,44). Se mantienen los órdenes actuales; para una respuesta más firme haría falta `--repeat 3` | este documento |
 | Antigravity: `tools:` por tier medido, `agy-contract` en CI | `1422602`, `9a1e131` |
 | `shared` y `antigravity` no se mezclan en un mismo proyecto | `ee89899` |
 
