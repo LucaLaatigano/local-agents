@@ -608,6 +608,21 @@ def check_installer(cat: Catalog):
                 errs.append(f"install.py {' '.join(args)} exited {proc.returncode}: "
                             f"{proc.stderr.strip()[-200:]}")
 
+        # Claude Code adds Edit and Write to any agent with `memory:`, with no
+        # limit to its memory dir (measured on 2.1.296), so a read-tier agent
+        # must be installed without it, and with exactly CLAUDE_READ_TOOLS.
+        claude_dir = Path(home) / ".claude" / "agents"
+        for agent, text in cat.agents.items():
+            if not re.search(r"^access:\s*read\s*$", text, re.M):
+                continue
+            f = claude_dir / f"{agent}.md"
+            head = f.read_text(encoding="utf-8").split("\n---", 1)[0] if f.is_file() else ""
+            if re.search(r"^memory:", head, re.M):
+                errs.append(f"{agent}.md (Claude Code): a read-tier agent must not get "
+                            f"`memory:` — the host then adds Edit and Write")
+            if not re.search(r"^tools: ", head, re.M):
+                errs.append(f"{agent}.md (Claude Code): a read-tier agent needs a `tools:` allowlist")
+
         # Codex agents are TOML, and `sandbox_mode = "read-only"` is the only
         # enforcement of the read tier there (measured on codex-cli 0.144.5).
         # CI pins Python 3.9, which has no TOML parser, so check the shape the

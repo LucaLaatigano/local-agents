@@ -427,11 +427,19 @@ def render_agent(tool: Tool, name: str, body: str, description: str,
     if tool.agent_style == "claude_md":
         # `tools:` is an allowlist; omitted, the subagent inherits every tool.
         tools_line = f"tools: {CLAUDE_READ_TOOLS}\n" if tier == "read" else ""
+        # No `memory:` for the read tier. Measured on Claude Code 2.1.296: an
+        # agent with memory gets Edit and Write ADDED to its allowlist, with no
+        # limit to its memory dir — a probe with only read tools plus
+        # `memory: local` wrote a file in the working directory. Every agent
+        # was installed with `memory: user`, so visionary and eng-manager could
+        # edit anything and rule 16 did not hold on this host. Without memory
+        # the tools are exactly CLAUDE_READ_TOOLS.
+        memory_line = "" if tier == "read" else f"memory: {meta.get('memory', 'user')}\n"
         fm = ("---\n"
               f"name: {name}\n"
               f"{yaml_description(desc)}\n"
               f"model: {meta.get('model', 'inherit')}\n"
-              f"memory: {meta.get('memory', 'user')}\n"
+              f"{memory_line}"
               f"{tools_line}"
               "---\n\n")
         return tool.agents_dir / f"{name}.md", fm + body
