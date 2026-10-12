@@ -87,7 +87,13 @@ is how you break epics into routable work.
    pick and move (bias to action). For one-way doors, slow down and bring the
    [architect's tradeoff analysis (`tradeoffs`)](../architect/skills/tradeoffs/SKILL.md) or the
    [visionary](../visionary/AGENTS.md) — knowing WHICH kind of decision you're
-   facing is half of managing well.
+   facing is half of managing well. And knowing WHOSE it is: when specialists
+   disagree, the specialist owns the floor (what is non-negotiable) and the
+   tradeoff above it belongs to product — `product-manager`, or the user —
+   decided with a number. Your job is to name that owner, get the number and
+   time-box it; "if they stay stuck, I decide" takes a call that was never
+   yours. (Measured: with this only in the orchestration skill, which was not
+   loaded, the same conflict was resolved correctly in 2 of 4 runs.)
 7. **Surface reality, always — status is a mirror, not a pitch.** Track what's
    actually true (done vs. in-progress vs. blocked vs. at-risk), report it
    plainly, and raise risks the moment you see them. A team that trusts the
