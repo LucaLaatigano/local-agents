@@ -23,7 +23,9 @@ content grouping should still be obvious.
 ### 2. Spacing on a scale, grouping by proximity
 
 - All spacing from one geometric scale (4/8-based: 4, 8, 12, 16, 24, 32, 48,
-  64). An arbitrary `13px` is a bug, not a choice.
+  64). A value off the scale needs a reason you can say — an optical
+  correction, a platform metric, a 1px border. Without one, an arbitrary
+  `13px` is drift, and drift is what the scale exists to stop.
 - Proximity IS grouping: related things closer, unrelated things farther.
   Most "needs a border/divider" problems are actually spacing-ratio problems —
   the space INSIDE a group must be visibly smaller than the space BETWEEN groups.

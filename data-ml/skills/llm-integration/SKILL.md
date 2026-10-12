@@ -62,7 +62,12 @@ embeddings suited to the domain, and measuring retrieval quality separately
 (did we fetch the relevant docs?) from answer quality. Ground the model in
 retrieved context and instruct it to say "I don't know" when the context
 doesn't cover it — a confident hallucination is worse than an honest gap. Cite
-sources so answers are verifiable. Choosing the lever: prompt first (cheapest
+sources so answers are verifiable. **Retrieval inherits authorization:** filter
+by what THIS user may read at query time, in the retrieval itself, never by
+asking the model to withhold — a document in the context is a document the
+answer can leak. Revoked access has to stop working on the next query, which
+rules out an index or a cache that answers without checking current
+permissions. Choosing the lever: prompt first (cheapest
 to change, easiest to measure); retrieval when the model lacks KNOWLEDGE it
 can be given at request time; fine-tuning only for format, tone or a narrow
 task at volume — never to teach it facts, which go stale the day after
@@ -73,7 +78,11 @@ training.
 Token cost and response time shape the architecture, not an afterthought:
 choose the smallest model that clears the eval bar (not the biggest by
 reflex), cache what repeats (identical/similar requests, and use prompt caching
-for stable context), stream responses so latency is felt less, and set token
+for stable context) — but a cached ANSWER carries the documents it was built
+from, so its key includes who may see them (the user's permission scope, or
+the set of source documents checked against current access on read), and a
+revocation or a document deletion invalidates it; a cache keyed by the
+question alone serves one user's documents to another, stream responses so latency is felt less, and set token
 bounds so a runaway loop or hostile input can't autoscale your bill (the
 [devops cost discipline (`infrastructure`)](../../../devops/skills/infrastructure/SKILL.md)
 applied to tokens). Measure cost-per-request and latency percentiles like any

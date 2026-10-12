@@ -82,8 +82,11 @@ until they quit.
   that flattens means a habit exists; one that slides to zero means you have
   tourists. Every mechanic's success is "did the curve move", not "did people
   click the badge" — measured PAST the novelty window: a new mechanic bumps
-  the curve for two to four weeks and decays, so a read taken inside that
-  window ships on a false positive.
+  the curve and then decays, so a read taken inside that window ships on a
+  false positive. The window's length is the product's, not a constant — a
+  daily app burns through novelty in weeks, a monthly one takes months — so
+  find it in your own data (when the new cohorts' curve stops moving) before
+  calling a result.
 - **Depth over frequency**: sessions per week without value delivered is
   addiction-shaped, not engagement-shaped — pair any frequency metric with a
   value metric (tasks completed, problems solved).

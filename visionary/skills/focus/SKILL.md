@@ -47,7 +47,10 @@ When the date and the plan collide, the order of sacrifice is fixed:
 1. **Scope** — ship fewer things, each one finished and great
 2. **Date** — only when the missing piece IS the product (a music player
    without playback isn't "an MVP", it's nothing)
-3. **Quality** — never (judgment #7; this list is its order of sacrifice)
+3. **Quality** — never on what ships (judgment #7; this list is its order of
+   sacrifice). Quality is the user's experience of the scope that remains: it
+   works, it handles its errors, it survives the second week. A refinement
+   nobody will feel this release is scope, and cutting it is step 1.
 
 "Finished" means the whole experience — empty states, errors, the second week
 — not the demo path. Half of a great product is a great half-product; all of a

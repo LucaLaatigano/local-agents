@@ -62,7 +62,11 @@ refactor something.
 
 ### 5. Smell → response table
 
-Not every smell triggers a refactor; each has its threshold:
+Not every smell triggers a refactor; each has its threshold. A threshold is a
+signal to LOOK, not a trigger to act: four parameters on a constructor that
+mirrors a record are fine, and two genuinely independent toggles can be the
+clearest API. Crossing one means "check"; the response column is what to do
+when the check confirms the smell.
 
 | Smell | Threshold | Response |
 |-------|-----------|----------|

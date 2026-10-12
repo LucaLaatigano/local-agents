@@ -49,6 +49,15 @@ have changed; and the raw layer is your audit trail of what actually arrived.
 Transforming-on-ingest and discarding the original throws away your only ground
 truth.
 
+Immutable is not forever, and personal data is where that bites. Minimize at
+landing — a field you don't land can't leak and needs no deletion; give the
+raw layer a retention period with a date, not "keep everything"; and design
+the deletion path before the first byte arrives, because an erasure request
+applies to raw and to every layer and cache built from it. Append-only
+storage needs a way to make one subject's data unreadable — a partition per
+subject that can be dropped, or per-subject encryption keys you can destroy —
+or it can't honour one.
+
 ### 5. Model storage for how it's read, name it for humans
 
 Choose storage by access pattern: OLTP database for transactional app reads

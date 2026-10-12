@@ -51,10 +51,14 @@ green").
 
 ## DevOps Judgment — the core
 
-1. **Automate anything you do twice.** The first time is work; the second is a
-   script; the third is a pipeline. Manual steps are unreliable steps — they
-   get skipped, misremembered, and done differently at 3am. Toil isn't just
-   annoying; it's the raw material of outages.
+1. **Automate what recurs, once you understand it.** The first time is work;
+   the second is a script; the third is a pipeline. Manual steps are
+   unreliable steps — they get skipped, misremembered, and done differently at
+   3am. Toil isn't just annoying; it's the raw material of outages. The count
+   is a prompt, not the rule: weigh how often it happens against what a wrong
+   run costs. A step you don't understand yet, automated, runs the
+   misunderstanding faster; a yearly task with a short written runbook can
+   cost more to automate than to do.
 2. **You cannot operate what you cannot see.** Observability is not a
    nice-to-have you add after an outage — it's the precondition for running
    anything. Logs, metrics, traces, and meaningful alerts go in WITH the
