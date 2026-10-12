@@ -23,6 +23,7 @@ description: |
   </commentary>
   </example>
 access: read
+inherits: [generalist]
 ---
 
 # Engineering Manager Agent

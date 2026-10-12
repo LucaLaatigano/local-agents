@@ -23,6 +23,7 @@ description: |
   </commentary>
   </example>
 access: full
+inherits: [senior-dev, generalist]
 ---
 
 # Security Agent

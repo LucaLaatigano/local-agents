@@ -145,11 +145,12 @@ Cómo se midió cada cosa, y cómo repetirlo, está en los comentarios de
 | Antigravity: skills globales en `~/.gemini/config/skills` | `1b2dde0` |
 | Medido: Claude Code no lee `~/.agents/skills` ni `.agents/skills` (el aviso de `shadowing` no cambia) | este documento |
 | Medido: en agy gana el agente del proyecto; uno sin frontmatter se ignora y usa el global | este documento |
-| El registro de instalación solo marca `dirty tree` si cambió algo que se instala (agentes, skills, `install.py`); chequeo `install-stamp` en CI | este cambio |
+| El registro de instalación solo marca `dirty tree` si cambió algo que se instala (agentes, skills, `install.py`); chequeo `install-stamp` en CI | `510e6ca` |
 | Medido: los cuatro hosts (opencode, Claude Code, agy, Codex) siguen un enlace simbólico a una skill de proyecto | este documento |
-| opencode: el aviso de `shadowing` incluye `.claude/skills` del proyecto, y el comando sugerido lleva `--project` | este cambio |
+| opencode: el aviso de `shadowing` incluye `.claude/skills` del proyecto, y el comando sugerido lleva `--project` | `6d2b934` |
 | Kiro medido. Descripciones de skills instaladas en una sola línea para todos los hosts (chequeo `skill-descriptions`); herramientas por tier medidas: `read` = read, grep, glob, web_fetch, web_search, subagent; `full` = todas | `6d2b934` |
-| Instalaciones parciales sin links rotos: un link a una skill que no se instaló pasa a ser su nombre, y vuelve a ser link cuando otra instalación la trae (antes: 171 links rotos en las 15 instalaciones de un solo agente; chequeo `partial-installs`) | este cambio |
+| Instalaciones parciales sin links rotos: un link a una skill que no se instaló pasa a ser su nombre, y vuelve a ser link cuando otra instalación la trae (antes: 171 links rotos en las 15 instalaciones de un solo agente; chequeo `partial-installs`) | `797b6b3` |
+| Herencia declarada en `inherits:`; el instalador ignora la prosa. Antes, borrar las frases "reasoning model"/"peer contract" dejaba a los 15 agentes sin herencia; ahora no cambia nada (chequeos `inheritance` e `inheritance-wording`). Instalación idéntica byte a byte en los 6 hosts | este cambio |
 | Antigravity: `tools:` por tier medido, `agy-contract` en CI | `1422602`, `9a1e131` |
 | `shared` y `antigravity` no se mezclan en un mismo proyecto | `ee89899` |
 
@@ -157,7 +158,6 @@ Cómo se midió cada cosa, y cómo repetirlo, está en los comentarios de
 
 | Prioridad | Qué | Por qué |
 |---|---|---|
-| P1 | **Herencia declarada en el frontmatter** (por ejemplo `inherits: [generalist, senior-dev]`), con `validate.py` comparando lo declarado contra lo que incorpora el instalador | Hoy la herencia se detecta por una frase ("reasoning model", "peer contract") a menos de 140 caracteres de un link: reescribir esa oración instala el agente sin el CORE de su padre, sin aviso |
 | P1 | **Trazabilidad del harness**: cada corrida registra el commit del harness, una huella de escenarios y criterios, la versión del CLI y el modelo efectivo | Hoy `run.json` guarda el commit del catálogo y `"model": "(cli default)"`; sin esto no se puede comparar una corrida vieja con una nueva |
 | P1 | **Suite de humo por host** en el harness: por host, que el agente cargue con su identidad, que el de solo lectura no pueda escribir y que el completo sí. Verifica archivos, sin juez. Reemplaza la "rutina de re-medición" y el "harness para más hosts" | Lo medido envejece con cada versión (consideración 3), y la regla 17 hoy solo se prueba en Claude Code. Es lo que se hizo a mano el 2026-10-11, repetible |
 | P2 | **Resistencia a contenido malicioso**: escenarios donde un archivo o el resultado de una herramienta intenta manipular al agente; se observan acciones, archivos y permisos, no solo lo que el agente dice | El catálogo sabe de prompt injection (`threat-modeling`, `code-audit`) pero nada prueba cómo actúa un agente frente a ella, y los agentes leen repos ajenos |

@@ -23,6 +23,7 @@ description: |
   </commentary>
   </example>
 access: full
+inherits: [senior-dev, generalist]
 ---
 
 # Data / ML Engineer Agent

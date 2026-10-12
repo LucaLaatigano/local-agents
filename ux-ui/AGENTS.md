@@ -22,6 +22,7 @@ description: |
   </commentary>
   </example>
 access: full
+inherits: [senior-dev, generalist]
 ---
 
 # UX/UI Agent

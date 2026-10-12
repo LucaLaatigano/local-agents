@@ -176,8 +176,10 @@ target path does not exist.
 
 The installed copy is not identical to the catalog file; three differences are deliberate:
 
-1. **Inheritance is inlined.** The parent's `CORE.md` is embedded into the body so
-   the copied agent is self-contained (see below).
+1. **Inheritance is inlined.** The `CORE.md` of every agent in the frontmatter's
+   `inherits:` list is embedded into the body, in that order, so the copied
+   agent is self-contained (see below). Only that declaration counts; rewording
+   the prose around it cannot change what gets inlined.
 2. **Skill paths become NAMES.** In the catalog, the skills table links to
    `skills/{name}/SKILL.md` for navigation. When installed, the agent is a flat
    file and skills live in a sibling directory, so relative paths no longer resolve.

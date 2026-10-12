@@ -34,6 +34,7 @@ description: |
   </commentary>
   </example>
 access: full
+inherits: [generalist]
 ---
 
 # Architect Agent

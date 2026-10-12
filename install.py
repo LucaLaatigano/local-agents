@@ -589,60 +589,49 @@ def install_skill(skill: Skill, tool: Tool, policy: str, interactive: bool, dry_
     return copy_skill(skill, tool, final, dry_run)
 
 
-# Inheritance in this catalog is a documented convention (see root AGENTS.md):
-# every agent inherits `generalist`'s reasoning; "peer" agents also adopt the
-# `senior-dev` Peer Contract. A `../X/AGENTS.md` link counts as inheritance ONLY
-# when X is one of these sources AND its trigger phrase sits near the link — so a
-# "close peer of ux-ui" handoff mention is never mistaken for inheritance.
-# To add an inheritance source: add "agent-name": "trigger phrase" here, and give
-# that agent a CORE.md (curated always-on essence) that gets inlined into its
-# children — without CORE.md the installer falls back to inlining the full body.
-INHERIT_SOURCES = {
-    "generalist": "reasoning model",
-    "senior-dev": "peer contract",
-}
+# Inheritance is DECLARED, in each agent's frontmatter: `inherits:` is the full,
+# ordered list of agents whose CORE.md (or whole body, without one) is inlined
+# into this agent, in that order — explicit, not resolved recursively. It used
+# to be detected from prose: a `../X/AGENTS.md` link with a trigger phrase
+# ("reasoning model") within 140 characters. Rewording that sentence installed
+# the agent without its parent's CORE, silently, and where the links happened to
+# sit decided the inlining order. `validate.py` checks the list is complete.
 
 
-def scan_refs(text: str):
-    """Return (inherited_agent_names, skill_names) referenced in `text`.
-    Skill links are matched by name (names are unique across the catalog)."""
-    inherited = []
-    for m in re.finditer(r"(?:\.\./)+([a-z][a-z-]*)/AGENTS\.md", text):
-        trigger = INHERIT_SOURCES.get(m.group(1))
-        # Whitespace-normalised: the trigger phrase is prose and prose wraps, so
-        # "reasoning\nmodel" must count. Matching the raw text made inheritance
-        # depend on where a line happened to break — and a miss here installs an
-        # agent without its parent's CORE, silently.
-        window = " ".join(text[max(0, m.start() - 140):m.end() + 140].lower().split())
-        if trigger and trigger in window:
-            inherited.append(m.group(1))
-    skills = set(re.findall(r"skills/([a-z][a-z-]*)/SKILL\.md", text))
-    return inherited, skills
+def declared_inherits(agent: Agent, agents: dict) -> list:
+    """The agents `agent` inherits from, in inlining order, from `inherits:`."""
+    meta, _ = split_frontmatter(agent.agents_md.read_text(encoding="utf-8"))
+    raw = meta.get("inherits")
+    if raw is None:
+        sys.exit(f"{agent.name}/AGENTS.md declares no `inherits:` — add the list of "
+                 f"agents it inherits from (`inherits: []` for none)")
+    names = [n.strip() for n in raw.strip().strip("[]").split(",") if n.strip()]
+    unknown = [n for n in names if n not in agents]
+    if unknown:
+        sys.exit(f"{agent.name}/AGENTS.md inherits from unknown agent(s): {', '.join(unknown)}")
+    return [agents[n] for n in names]
+
+
+def scan_refs(text: str) -> set:
+    """Skill names linked from `text` (names are unique across the catalog)."""
+    return set(re.findall(r"skills/([a-z][a-z-]*)/SKILL\.md", text))
 
 
 def resolve_deps(agent: Agent, agents: dict, skills_by_name: dict):
-    """Transitive closure of what `agent` needs: the ordered list of agents whose
-    reasoning it inherits (to inline) and the set of skills to install."""
-    inherited_order, seen = [], set()
+    """What `agent` needs: the declared, ordered list of agents it inherits
+    from (to inline), and the skills to install — its own, those of every agent
+    it inherits from, and the skills any of them link to."""
+    inherited = declared_inherits(agent, agents)
     skill_names = set()
-
-    def walk(ag: Agent):
+    for ag in (agent, *inherited):
         texts = [ag.agents_md.read_text(encoding="utf-8")]
         for sk in ag.skills:
             skill_names.add(sk.name)
             texts.append((sk.path / "SKILL.md").read_text(encoding="utf-8"))
         for txt in texts:
-            inh, sref = scan_refs(txt)
-            skill_names.update(sref)
-            for pname in inh:
-                if pname in agents and pname not in seen and pname != ag.name:
-                    seen.add(pname)
-                    inherited_order.append(agents[pname])
-                    walk(agents[pname])
-
-    walk(agent)
+            skill_names.update(scan_refs(txt))
     skills = [skills_by_name[n] for n in sorted(skill_names) if n in skills_by_name]
-    return inherited_order, skills
+    return inherited, skills
 
 
 def deref_skill_links(body: str) -> str:

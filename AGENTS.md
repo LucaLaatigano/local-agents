@@ -32,6 +32,11 @@ Rules for this catalog:
    blocks that show WHEN to delegate to it. `install.py` reads this to generate
    each tool's agent-file description; without it, it falls back to the first
    sentence (a weaker delegation signal). Keep the body below the frontmatter.
+   The frontmatter also declares `inherits:` — the full, ordered list of agents
+   whose `CORE.md` gets inlined (`[generalist]`, `[senior-dev, generalist]`, or
+   `[]` for the base). The installer reads only this list; the prose that
+   explains the inheritance can be reworded freely. Inheriting from X means
+   listing what X inherits too; `validate.py` checks it.
 4. Every new agent gets a row in the table below, and a routing row in
    `eng-manager`'s [orchestration](eng-manager/skills/orchestration/SKILL.md)
    skill — the only component that knows the whole roster.

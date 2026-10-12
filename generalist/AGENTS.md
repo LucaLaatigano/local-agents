@@ -23,6 +23,7 @@ description: |
   </commentary>
   </example>
 access: full
+inherits: []
 ---
 
 # Generalist Agent

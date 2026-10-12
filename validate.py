@@ -43,9 +43,10 @@ except ImportError:
 
 ROOT = Path(__file__).resolve().parent
 
-# Mirrors install.py's INHERIT_SOURCES: a `../X/AGENTS.md` link counts as
-# inheritance only when X is a known source AND its trigger phrase sits within
-# 140 chars, so a handoff mention is never mistaken for inheritance.
+# Inheritance itself is declared in each agent's `inherits:` frontmatter, and
+# that is what install.py inlines. The prose that explains it ("adopts the
+# reasoning model of ../generalist/AGENTS.md") is still told apart from a
+# handoff link for the GRAPH, by these trigger phrases within 140 chars.
 INHERIT_SOURCES = {"generalist": "reasoning model", "senior-dev": "peer contract"}
 PROXIMITY = 140
 
@@ -92,15 +93,20 @@ class Catalog:
     def owner(self, skill: str):
         return self.skills[skill][0] if skill in self.skills else None
 
+    def declared_inherits(self, name: str):
+        """The `inherits:` list in the agent's frontmatter, or None if absent."""
+        m = re.match(r"---\n(.*?)\n---", self.agents[name], re.S)
+        meta = (yaml.safe_load(m.group(1)) or {}) if m else {}
+        return meta.get("inherits") if "inherits" in meta else None
+
     def inheritance(self):
-        """{child: {parents}} — the structural edges install.py inlines."""
+        """{child: {parents}} — the structural edges install.py inlines, as
+        declared in `inherits:`."""
         out = {}
-        for name, text in self.agents.items():
-            for m in re.finditer(r"(?:\.\./)+([a-z][a-z-]*)/AGENTS\.md", text):
-                tgt = m.group(1)
-                trig = INHERIT_SOURCES.get(tgt)
-                if trig and trig in _window(text, m):
-                    out.setdefault(name, set()).add(tgt)
+        for name in self.agents:
+            parents = self.declared_inherits(name) or []
+            if parents:
+                out[name] = set(parents)
         return out
 
     def handoffs(self):
@@ -391,24 +397,67 @@ def check_agy_contract(cat: Catalog):
 
 
 def check_inheritance(cat: Catalog):
-    """Every agent but `generalist` must declare that it inherits the reasoning
-    model, and detection must actually see it.
+    """Every agent declares `inherits:` — the ordered list install.py inlines —
+    and the list is complete: every agent but `generalist` includes it, each
+    name is an agent, and whoever inherits X also lists what X inherits.
 
-    This exists because the failure is silent: the trigger phrase is prose, and
-    when a line wrapped mid-phrase the link stopped counting as inheritance.
-    Nothing broke loudly — `install.py` just produced an agent without its
-    parent's CORE inlined. A missing base loop is not something to discover in
-    conversation with a lobotomised agent."""
+    It used to be detected from prose (a trigger phrase near a link), and the
+    failure was silent: a reworded sentence installed an agent without its
+    parent's CORE. Now the installer reads only the declaration, and a reworded
+    sentence cannot change what it inlines (check_inheritance_wording)."""
     errs = []
-    inh = cat.inheritance()
     for name in sorted(cat.agents):
-        if name == "generalist":
+        parents = cat.declared_inherits(name)
+        if not isinstance(parents, list):
+            errs.append(f"{name}/AGENTS.md: needs `inherits: [...]` in its frontmatter "
+                        f"(`inherits: []` for none)")
             continue
-        if "generalist" not in inh.get(name, set()):
-            errs.append(f"{name}/AGENTS.md: does not declare inheritance from "
-                        f"`generalist` — link ../generalist/AGENTS.md with the "
-                        f"phrase \"reasoning model\" beside it")
+        if name == "generalist":
+            if parents:
+                errs.append("generalist/AGENTS.md: the base agent inherits nothing")
+            continue
+        if "generalist" not in parents:
+            errs.append(f"{name}/AGENTS.md: `inherits:` must include generalist")
+        for p in parents:
+            if p not in cat.agents or p == name:
+                errs.append(f"{name}/AGENTS.md: inherits from `{p}`, which is not "
+                            f"another agent")
+                continue
+            missing = [g for g in (cat.declared_inherits(p) or []) if g not in parents]
+            if missing:
+                errs.append(f"{name}/AGENTS.md: inherits from `{p}` but not from what "
+                            f"`{p}` inherits ({', '.join(missing)})")
     return errs
+
+
+def check_inheritance_wording(cat: Catalog):
+    """Rewording an agent never changes what the installer inlines. A copy of
+    the catalog with every inheritance trigger phrase scrambled must resolve
+    the same inherited agents, in the same order, as the real one."""
+    import importlib.util
+    import shutil
+    spec = importlib.util.spec_from_file_location("installer_inh", cat.root / "install.py")
+    installer = importlib.util.module_from_spec(spec)
+    sys.modules["installer_inh"] = installer
+    spec.loader.exec_module(installer)
+
+    def resolved(root):
+        agents, skills = installer.discover(root)
+        by_name = {s.name: s for s in skills}
+        return {n: [a.name for a in installer.resolve_deps(a, agents, by_name)[0]]
+                for n, a in agents.items()}
+
+    with tempfile.TemporaryDirectory() as tmp:
+        copy = Path(tmp) / "catalog"
+        shutil.copytree(cat.root, copy, ignore=shutil.ignore_patterns(".git"))
+        for md in copy.glob("*/AGENTS.md"):
+            text = md.read_text(encoding="utf-8")
+            for phrase in INHERIT_SOURCES.values():
+                text = re.sub(r"\s+".join(phrase.split()), "zz", text, flags=re.I)
+            md.write_text(text, encoding="utf-8")
+        real, reworded = resolved(cat.root), resolved(copy)
+    return [f"{n}: inherits {real[n]} as written, {reworded.get(n)} once reworded"
+            for n in sorted(real) if real[n] != reworded.get(n)]
 
 
 def check_orchestration_roster(cat: Catalog):
@@ -1048,7 +1097,8 @@ CHECKS = [
     ("harness-paths", "no tool-specific paths in agent/skill bodies", check_harness_paths),
     ("language-register", "rule 6 — neutral vs Rioplatense", check_language_register),
     ("agent-rows", "rule 4 — every agent indexed in AGENTS.md", check_agent_rows),
-    ("inheritance", "every agent declares the generalist reasoning model", check_inheritance),
+    ("inheritance", "every agent declares a complete `inherits:` list", check_inheritance),
+    ("inheritance-wording", "rewording an agent never changes what it inherits", check_inheritance_wording),
     ("orchestration-roster", "the orchestrator routes to every agent", check_orchestration_roster),
     ("agent-invocation", "no body assumes a way to invoke another agent", check_agent_invocation),
     ("identity-neutrality", "agent identity is stack-agnostic (skills carry the stack)", check_identity_neutrality),

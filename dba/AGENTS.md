@@ -35,6 +35,7 @@ description: |
   </commentary>
   </example>
 access: full
+inherits: [senior-dev, generalist]
 ---
 
 # DBA Agent
