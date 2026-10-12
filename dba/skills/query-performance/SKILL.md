@@ -57,8 +57,11 @@ model is where it lives.
 
 An index on a column with three distinct values across a million rows cannot
 save you: the database will correctly decide that scanning is cheaper than
-following pointers for a third of the table. Know the cardinality before
-prescribing — and when a low-selectivity filter really must be fast, the answer
+following pointers for a third of the table. That arithmetic assumes the
+three values are evenly spread, and real data rarely is: if one value holds
+0.1% of the rows, an index finds those rows fast while being useless for the
+other two. Know the cardinality AND the distribution before prescribing — and
+when a low-selectivity filter really must be fast, the answer
 is usually structural (a partial index, a different partitioning of the data),
 not another index on the same column.
 

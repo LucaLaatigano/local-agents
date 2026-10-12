@@ -25,9 +25,14 @@ them before teaching._
 
 In Next.js App Router, every component is a server component until it earns
 `'use client'` with a concrete reason: event handlers, browser APIs, stateful
-interactivity. Push the directive to the **leaves** — a client wrapper at the
-top of the tree silently drags everything under it to the client. When in doubt,
-split: server shell, small client island. In a client-only app (Vite, React
+interactivity. Push the directive to the **leaves**: `'use client'` marks a
+module boundary, and everything that module IMPORTS joins the client bundle. A
+server component passed INTO a client component as `children` (or any prop)
+still renders on the server — the boundary follows imports, not the visual
+tree. So a client provider or layout wrapper does not by itself drag the page
+under it to the client; importing that page's components into it does. When
+in doubt, split: server shell, small client island, server content passed in
+as `children`. In a client-only app (Vite, React
 Native, a pure SPA) this pattern has nothing to apply to — everything is
 client, and saying so beats forcing a server/client split that buys nothing.
 

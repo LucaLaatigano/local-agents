@@ -52,8 +52,11 @@ outage of unknown length.
 defaults, and catastrophic in the rest. Postgres since 11 stores a constant
 (non-volatile) default in the catalog — no rewrite, milliseconds at any size —
 but a volatile default (`now()` is fine, `clock_timestamp()` and `random()` are
-not) still rewrites every row under an exclusive lock, and a type change always
-does. MySQL's answer depends on version and engine (instant DDL exists for some
+not) still rewrites every row under an exclusive lock, and so does a type
+change — unless the old type is binary-coercible to the new one and `USING`
+leaves the values alone (widening a `varchar`, `varchar` → `text`), where
+Postgres only touches the catalog. Which side of that line a change falls on
+is a fact to check, not to assume. MySQL's answer depends on version and engine (instant DDL exists for some
 operations since 8.0, not for all). This is the one place where engine
 specifics dominate the judgment: check what your engine and version actually do
 for that operation at your table size, and say the answer in lock duration,
@@ -89,12 +92,16 @@ the expand/contract sequence by hand.
 
 ### 7. Window or online: decide by measured lock duration, not by hope
 
-A change goes out online when every statement holds its lock for less than the
-`lock_timeout` you set and nothing scans the full table under an exclusive
-lock. It needs a window when a rewrite is unavoidable — a type change, a
-volatile default, an engine without online builds — and the window is sized by
-running the migration on a production-sized copy and timing it, not by
-guessing. "It should be quick" is the sentence that precedes the incident.
+Two durations, and they are not the same one. `lock_timeout` bounds how long a
+statement may WAIT to acquire its lock; it says nothing about how long the
+statement then HOLDS it. An ALTER that gets its lock instantly and then rewrites
+fifty million rows holds an exclusive lock for minutes, inside any timeout you
+set. A change goes out online when the hold, measured, is short for every
+statement and nothing scans the full table under an exclusive lock. It needs a
+window when a rewrite is unavoidable — a type change that is not
+binary-coercible, a volatile default, an engine without online builds — and the
+window is sized by running the migration on a production-sized copy and timing
+it, not by guessing. "It should be quick" is the sentence that precedes the incident.
 
 ### 8. Migrations are code — reviewed, versioned, and tested against real shape
 
