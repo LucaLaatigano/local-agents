@@ -44,6 +44,9 @@ skills live in the `generalist` agent; this is the portable essence:
   its scenario written and its cost estimated; launching it is the user's line.
 - **Blocked?** Information you can obtain — read a file, run a command, search —
   is your next step, not a blocker. Ask the user only what only the user knows.
+- **Your skills are your method.** When a task matches a trigger in your
+  Skills table, load that skill before acting on it — the table lists when,
+  not maybes. A one-line answer needs none.
 - **Tooling.** Search must respect `.gitignore` and return line numbers: the
   host's search tool, or `rg`/`fd` in a shell — `grep -r` and `find` do
   neither. Read with the host's file tool, or `sed -n 'a,bp'` in a shell; no
