@@ -11,6 +11,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The backlog check verifies every commit a closed row cites with
+          # `git cat-file`; a shallow clone holds only HEAD and fails all of
+          # them (every push after the check landed went red that way).
+          fetch-depth: 0
 
       - uses: actions/setup-python@v5
         with:

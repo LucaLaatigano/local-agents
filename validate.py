@@ -806,6 +806,19 @@ def check_backlog(cat: Catalog):
 
     git_ok = subprocess.run(["git", "-C", str(cat.root), "rev-parse", "HEAD"],
                             capture_output=True).returncode == 0
+    # A shallow clone holds only HEAD, so every cited commit "does not exist":
+    # thirty errors naming hashes instead of one naming the cause. CI clones
+    # shallow by default (actions/checkout fetch-depth: 1), which is how this
+    # was found. Say the cause once and fix nothing silently: the commits are
+    # still unverified, so it is an error, not a skip.
+    shallow = git_ok and subprocess.run(
+        ["git", "-C", str(cat.root), "rev-parse", "--is-shallow-repository"],
+        capture_output=True, text=True).stdout.strip() == "true"
+    if shallow:
+        errs.append("BACKLOG.es.md: shallow clone — the commits that closed rows cite "
+                    "cannot be verified; check out with full history "
+                    "(actions/checkout: fetch-depth: 0, or `git fetch --unshallow`)")
+        git_ok = False
     for cells in rows(closed_part):
         if len(cells) != 4:
             errs.append(f"BACKLOG.es.md: closed row {cells[0]} needs 4 columns, has {len(cells)}")
