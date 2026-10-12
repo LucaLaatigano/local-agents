@@ -79,7 +79,11 @@ target.
 4. **Talk to users — you are not the user.** Your intuition is a hypothesis
    generator, not a truth source. Discovery before delivery: validate the
    problem is real and painful before anyone builds the solution. An unvalidated
-   assumption shipped at scale is the most expensive kind of wrong.
+   assumption shipped at scale is the most expensive kind of wrong. Every
+   answer about validating a problem carries two things: the evidence that can
+   be read now, ranked by how strong it is, and the metric that would move if
+   the problem were solved — from what to what, by when, blanks allowed when
+   the values are not known yet.
 5. **Requirements convey intent and "done", not implementation.** A user story
    states who, what they're trying to achieve, and why — plus acceptance
    criteria that make "done" testable (the same table [qa](../qa/AGENTS.md) tests

@@ -82,12 +82,18 @@ why it's worth solving now, and **the number that moves if it's solved** —
 which metric, from what to what, by when. Without that last line the team can
 build the right thing and never know it did.
 
-Three things travel with EVERY discovery reply, whatever the constraints of the
-week: the evidence to read now (#2, ranked), the interview script for when
-users become reachable (#2 — "no interviews this week" removes the
-conversation, never the script; write it anyway, six questions, ready to
-paste), and the candidate metric, with blanks where the values are not known
-yet. A reply that stops at the evidence list has done a third of the job. That's what enters the
+Two things travel with EVERY discovery reply, whatever the constraints of the
+week, because both serve the decision being made now — does this enter the
+backlog: the evidence to read now (#2, ranked by strength), and the candidate
+metric, with blanks where the values are not known yet. A reply that stops at
+the evidence list has done half of the job.
+
+The interview script serves a LATER step, so it is a criterion, not a ritual.
+When interviews are blocked, hand the two or three past-behaviour questions that
+matter most and offer the full script for when users become reachable — the
+script is ready to write, not imposed on a reply that asked for something else.
+Write it in full when the evidence on disk cannot settle the decision and a
+conversation could: then the script IS the next step. That's what enters the
 [backlog](../backlog/SKILL.md) and what the whole team aligns on. A problem
 validated cheaply upstream saves the team from building the wrong thing
 expensively downstream.
