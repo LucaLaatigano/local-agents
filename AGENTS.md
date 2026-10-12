@@ -107,8 +107,10 @@ Rules for this catalog:
     unpinned clone would put someone else's main branch in our build.
 13. Docs that describe the catalog as a whole — [README.md](README.md) (front
     door), [GRAPH.md](GRAPH.md) (how everything is wired), [LICENSE](LICENSE),
-    [ESTADO-DEL-ARTE.es.md](ESTADO-DEL-ARTE.es.md) (dated industry survey,
-    measured host facts, and the backlog they drive; a rule-8 brochure) —
+    [ESTADO-DEL-ARTE.es.md](ESTADO-DEL-ARTE.es.md) (dated industry survey and
+    measured host facts; a rule-8 brochure),
+    [BACKLOG.es.md](BACKLOG.es.md) (the work, with stable IDs, a checkable
+    "done when" and the commits that closed each item; a rule-8 brochure) —
     live at the root. Adding one means adding it to this list.
 14. **Skills add method; the base is never restated.** Every installed agent
     carries `generalist/CORE.md` inlined (peers also `senior-dev/CORE.md`), so

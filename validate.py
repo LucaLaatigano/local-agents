@@ -154,7 +154,8 @@ def frontmatter(text: str):
 def check_links(cat: Catalog):
     errs = []
     files = ["AGENTS.md", "README.md", "GRAPH.md", "INSTALL.md", "USAGE.md",
-             "INTEGRATION.md", "REFERENCE.es.md", "ESTADO-DEL-ARTE.es.md"]
+             "INTEGRATION.md", "REFERENCE.es.md", "ESTADO-DEL-ARTE.es.md",
+             "BACKLOG.es.md"]
     files += [f"{a}/AGENTS.md" for a in cat.agents]
     files += [str(p.relative_to(cat.root)) for _a, p, _t in cat.skills.values()]
     for rel in files:
@@ -755,6 +756,84 @@ def check_skill_descriptions(cat: Catalog):
     return errs
 
 
+BACKLOG_OPEN = {"pendiente", "en curso", "en espera"}
+BACKLOG_CLOSED = {"hecho", "descartado"}
+
+
+def check_backlog(cat: Catalog):
+    """BACKLOG.es.md keeps its own rules: stable unique IDs, a priority and a
+    checkable "done when" on every open item, and a commit on every `hecho`.
+
+    The backlog used to live as a table inside the survey, and rows kept saying
+    "este cambio" long after the change was committed — nothing tied a done
+    row to the commit that did it. Catalog commits are checked against git;
+    `harness:` ones only for their shape (that repo is not here in CI)."""
+    path = cat.root / "BACKLOG.es.md"
+    if not path.is_file():
+        return ["BACKLOG.es.md is missing"]
+    text = path.read_text(encoding="utf-8")
+    errs, seen = [], set()
+    try:
+        open_part = text.split("## Abiertos", 1)[1].split("## Cerrados", 1)[0]
+        closed_part = text.split("## Cerrados", 1)[1]
+    except IndexError:
+        return ["BACKLOG.es.md: needs an `## Abiertos` and a `## Cerrados` section"]
+
+    def rows(part):
+        for line in part.splitlines():
+            if re.match(r"^\| B-", line):
+                yield [c.strip() for c in line.strip().strip("|").split("|")]
+
+    def check_id(i):
+        if not re.fullmatch(r"B-\d{3}", i):
+            errs.append(f"BACKLOG.es.md: bad ID `{i}` (expected B-NNN)")
+        elif i in seen:
+            errs.append(f"BACKLOG.es.md: ID {i} used twice")
+        seen.add(i)
+
+    for cells in rows(open_part):
+        if len(cells) != 6:
+            errs.append(f"BACKLOG.es.md: open row {cells[0]} needs 6 columns, has {len(cells)}")
+            continue
+        i, prio, state, _what, _why, done_when = cells
+        check_id(i)
+        if prio not in ("P1", "P2", "P3"):
+            errs.append(f"BACKLOG.es.md: {i} has priority `{prio}` (P1, P2 or P3)")
+        if state not in BACKLOG_OPEN:
+            errs.append(f"BACKLOG.es.md: open item {i} is `{state}` ({', '.join(sorted(BACKLOG_OPEN))})")
+        if len(done_when) < 15:
+            errs.append(f"BACKLOG.es.md: {i} needs a checkable \"terminado cuando\"")
+
+    git_ok = subprocess.run(["git", "-C", str(cat.root), "rev-parse", "HEAD"],
+                            capture_output=True).returncode == 0
+    for cells in rows(closed_part):
+        if len(cells) != 4:
+            errs.append(f"BACKLOG.es.md: closed row {cells[0]} needs 4 columns, has {len(cells)}")
+            continue
+        i, state, _what, ref = cells
+        check_id(i)
+        if state not in BACKLOG_CLOSED:
+            errs.append(f"BACKLOG.es.md: closed item {i} is `{state}` (hecho or descartado)")
+        if state == "hecho":
+            commits = re.findall(r"`((?:harness:)?[0-9a-f]{7,40})`", ref)
+            if not commits:
+                errs.append(f"BACKLOG.es.md: {i} is hecho but cites no commit")
+            for c in commits:
+                if git_ok and not c.startswith("harness:") and subprocess.run(
+                        ["git", "-C", str(cat.root), "cat-file", "-e", f"{c}^{{commit}}"],
+                        capture_output=True).returncode != 0:
+                    errs.append(f"BACKLOG.es.md: {i} cites `{c}`, which is not a commit here")
+        if state == "descartado" and len(ref) < 15:
+            errs.append(f"BACKLOG.es.md: {i} is descartado without a reason")
+
+    survey = cat.root / "ESTADO-DEL-ARTE.es.md"
+    if survey.is_file():
+        for ref in sorted(set(re.findall(r"\bB-\d{3}\b", survey.read_text(encoding="utf-8")))):
+            if ref not in seen:
+                errs.append(f"ESTADO-DEL-ARTE.es.md cites {ref}, which is not in the backlog")
+    return errs
+
+
 def check_install_stamp(cat: Catalog):
     """The install stamp calls the catalog dirty only when what gets installed
     differs from the commit. Measured: with `git status` over the whole repo, a
@@ -1123,6 +1202,7 @@ CHECKS = [
     ("kiro-contract", "Kiro agent JSON matches the recipe in USAGE.md", check_kiro_contract),
     ("agy-contract", "Antigravity tools lists match the recipe in USAGE.md", check_agy_contract),
     ("install-stamp", "the install stamp is dirty only when installed content changed", check_install_stamp),
+    ("backlog", "BACKLOG.es.md: stable IDs, done-when on open items, commits on done ones", check_backlog),
     ("skill-descriptions", "installed skill descriptions are one line and match the catalog", check_skill_descriptions),
     ("partial-installs", "a single-agent install leaves no dead skill links", check_partial_installs),
     ("readme-counts", "README roster matches reality", check_readme_counts),

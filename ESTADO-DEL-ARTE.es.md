@@ -99,6 +99,26 @@ pronto:
 | **Claude Code 2.1.296** | `~/.claude/agents`, `.claude/agents` | `~/.claude/skills`, `.claude/skills`. **No** lee `~/.agents/skills` ni `.agents/skills` | allowlist `tools:` | Se puede medir gratis: el evento `init` de `claude -p --output-format stream-json --verbose` lista las skills cargadas antes de consultar al modelo. El comportamiento de los agentes lo prueba el harness |
 | **Kiro (kiro-cli 2.29.1)** | JSON en `~/.kiro/agents`, `.kiro/agents` | `~/.kiro/skills`, `.kiro/skills`, vía `resources` `skill://` (el `~` funciona también por proyecto) | lista `tools`, que se hace cumplir | **Lee solo la primera línea de la descripción de una skill**: con `description: >` la ve vacía, y la skill no se dispara nunca. `code` modifica archivos (AST rewrite) y `subagent` delega en un agente que escribe. `kiro-cli agent validate` acepta herramientas y campos inventados |
 
+### Otros hallazgos medidos
+
+- **Claude Code no lee `~/.agents/skills` ni `.agents/skills`**: el aviso de
+  `shadowing` no lo incluye (2.1.296; se mide gratis con el evento `init`).
+- **En agy gana el agente del proyecto** sobre el global del mismo nombre, y uno
+  sin frontmatter se ignora y se usa el global (1.3.3).
+- **Los cuatro hosts siguen un enlace simbólico** a una skill de proyecto
+  (opencode, Claude Code, agy, Codex). Ver B-029.
+- **El orden de los CORE no cambia el comportamiento observable**: `devops` con
+  los dos órdenes, 4/4 en ambos (Sonnet, 1 muestra; runs `20261011-211529` y
+  `20261011-211554`).
+- **Línea base neutral**: suite completa con `claude-sonnet-5-5`, 60/68 (run
+  `20261011-220947`). Los fallos consistentes también fallaban con la
+  configuración del usuario (experimento de atribución): no los causaba la
+  sesión neutral.
+- **Los agentes casi nunca cargan sus skills**: 1 de 15 muestras en 5 escenarios,
+  y cargarla o no no explica quién pasa (7 PASS y 7 FAIL sin skill; run
+  `20261011-230905`). Un criterio que vive solo en una skill es invisible en la
+  práctica. Ver B-023.
+
 Cómo se midió cada cosa, y cómo repetirlo, está en los comentarios de
 `install.py` (`AGY_TOOLS`, `shadow_report`, el renderer de Codex) y en
 [INSTALL.md](INSTALL.md).
@@ -136,50 +156,7 @@ Cómo se midió cada cosa, y cómo repetirlo, está en los comentarios de
 
 ## 5. Backlog
 
-### Hecho
-
-| Qué | Commit |
-|---|---|
-| Codex: agentes TOML con `sandbox_mode`, retira la instalación vieja con roster | `6d64076` |
-| Aviso de copias viejas que un host puede cargar (`shadowing`) y `--refresh` | `a64736f` |
-| Antigravity: skills globales en `~/.gemini/config/skills` | `1b2dde0` |
-| Medido: Claude Code no lee `~/.agents/skills` ni `.agents/skills` (el aviso de `shadowing` no cambia) | este documento |
-| Medido: en agy gana el agente del proyecto; uno sin frontmatter se ignora y usa el global | este documento |
-| El registro de instalación solo marca `dirty tree` si cambió algo que se instala (agentes, skills, `install.py`); chequeo `install-stamp` en CI | `510e6ca` |
-| Medido: los cuatro hosts (opencode, Claude Code, agy, Codex) siguen un enlace simbólico a una skill de proyecto | este documento |
-| opencode: el aviso de `shadowing` incluye `.claude/skills` del proyecto, y el comando sugerido lleva `--project` | `6d2b934` |
-| Kiro medido. Descripciones de skills instaladas en una sola línea para todos los hosts (chequeo `skill-descriptions`); herramientas por tier medidas: `read` = read, grep, glob, web_fetch, web_search, subagent; `full` = todas | `6d2b934` |
-| Instalaciones parciales sin links rotos: un link a una skill que no se instaló pasa a ser su nombre, y vuelve a ser link cuando otra instalación la trae (antes: 171 links rotos en las 15 instalaciones de un solo agente; chequeo `partial-installs`) | `797b6b3` |
-| Herencia declarada en `inherits:`; el instalador ignora la prosa. Antes, borrar las frases "reasoning model"/"peer contract" dejaba a los 15 agentes sin herencia; ahora no cambia nada (chequeos `inheritance` e `inheritance-wording`). Instalación idéntica byte a byte en los 6 hosts | `5f634c5` |
-| Medido: el orden de los CORE no cambia el comportamiento observable. `devops` con el orden actual (Peer Contract → base) y el invertido (base → Peer Contract): 4/4 escenarios en los dos, diferencias dentro de la variación entre corridas (Sonnet como agente y juez, 1 muestra por escenario, runs `20261011-211529` y `20261011-211554` del harness, USD 1,44). Se mantienen los órdenes actuales; para una respuesta más firme haría falta `--repeat 3` | este documento |
-| Trazabilidad del harness: cada `run.json` registra huellas de los agentes instalados, las skills, `CLAUDE.md`, cada escenario y su fixture, el commit del harness y la versión del CLI, más los modelos y output styles que respondieron de verdad; `--applicability` clasifica cada resultado en `current`/`partial`/`historic` sin llamar a un modelo. Verificado con una corrida real (USD 0,16): modelo efectivo `claude-sonnet-5-5`, output style `Mentor` | `32652b9` (repo del harness) |
-| Harness neutral: el agente bajo prueba corre con `--setting-sources project,local` (sin output style, `CLAUDE.md`, skills, plugins ni permisos del usuario), con solo las skills del catálogo copiadas a cada muestra y permisos propios del harness por `--settings`. Medido: con la configuración del usuario el modelo citaba su `CLAUDE.md`; en sesión neutral, no. Un `settings.json` dentro de la carpeta de prueba no se leía y dejó a un agente sin `Write` en un escenario que igual pasó | repo del harness, este cambio |
-| Harness: terminal neutral (`CLAUDE_CODE_SHELL=/bin/bash`, sin los alias de zsh del usuario: `ls` era `eza` y devolvía vacío), detector de denegaciones que reconoce "requires approval", utilidades de lectura y `which` en el perfil de permisos, aserción `expect_files` (el juez lee la respuesta, no el disco) y `--user-session` solo para experimentos | repo del harness |
-| Línea base neutral: suite completa con Sonnet (`claude-sonnet-5-5`), 60/68, USD 9,87, run `20261011-220947`. Con `--repeat 3`, 4 fallos son consistentes; el experimento de atribución con la configuración del usuario dio los mismos resultados, así que no los causa la sesión neutral | este documento |
-| Claude Code: los agentes de solo lectura se instalan sin `memory:`. Medido en 2.1.296: `memory:` suma `Edit` y `Write` sin límite de carpeta (un agente de lectura con `memory: local` creó un archivo en el directorio de trabajo), así que `visionary` y `eng-manager` podían editar cualquier archivo. Sin `memory:` reciben exactamente su lista. Chequeo en `validate.py` y escenario `visionary-cannot-write-files` (con la versión vieja pasó: la prosa contuvo al agente, que delegó la escritura; lo que faltaba era el piso) | `f564749` |
-| Errores técnicos de skills (revisión externa, verificados en el texto): `migrations` (un cambio de tipo no siempre reescribe; `lock_timeout` limita la espera, no la retención del lock), `query-performance` (distribución además de cardinalidad), `react-next` (la frontera cliente sigue los imports, no el árbol; `children` de servidor siguen en servidor), `design-review` (architect ya no es de solo lectura). Escenario `dba-separates-lock-wait-from-lock-hold`: pasó 2/2 con la skill vieja, la corrección es documental | `c66b0be` |
-| `discovery` #6: evidencia y métrica obligatorias en toda respuesta; el guion de entrevista pasa a criterio (preguntas clave + ofrecimiento, completo solo si una entrevista puede cambiar la decisión). Escenario ajustado. El guion dejó de ser motivo de fallo | este cambio |
-| Medido: los agentes casi nunca cargan sus skills (`claude-sonnet-5-5`, 1 de 15 muestras en 5 escenarios) y cargarlas o no NO explica quién pasa (7 PASS y 7 FAIL sin skill): un criterio que vive solo en una skill es invisible en la práctica. La hipótesis "fallan por no cargarla" quedó refutada (run `20261011-230905`) | este documento |
-| PM: "evidencia ordenada + métrica que se movería" en el cuerpo del agente. `product-manager-uses-proxy-evidence` pasó de 0/3 a 3/3; en las tres muestras el agente además cargó `discovery`, que antes no cargaba (observación con 3 muestras, run `20261011-231514`) | `b4f0d2d` |
-| `eng-manager`: dos criterios de ruteo en el cuerpo (el agente de plataforma construye su plataforma; en paralelo solo lo que no comparte una incógnita). `compose-native-ios` 1/3 → 3/3 y `eng-manager-parallelizes-by-shared-unknowns` 2/3 → 3/3, sin cargar skills (run `20261011-231951`). `dba-routes-deploy-to-devops`: el escenario exigía negarse al rename, y lo correcto es recomendar expand/contract y condicionar el rename directo a una ventana, dejando la decisión al usuario (Peer Contract); con el criterio corregido, 3/3 (run `20261011-232320`) | `e0c6e03` |
-| Suite de humo por host (`smoke.py` en el harness): instalación por proyecto en carpeta descartable; carga, skill visible, el tier de lectura no escribe y el completo sí. **Los 5 hosts pasan todo**: Claude Code 2.1.296 (Sonnet), Kiro 2.29.1, Codex 0.162.1 y Antigravity 1.3.3 (run-smoke `20261011-233754`), opencode 1.19.0 con `gpt-6-luna` (`20261011-234601`). Codex y opencode se actualizaron el mismo día y lo medido siguió valiendo. Dos trampas de opencode medidas: toma su directorio de `PWD` (la suite fija `PWD` y `--dir`, y falla si un archivo aparece fuera de la carpeta), y su plan gratuito rechaza desde `opencode run` a los agentes con permisos `deny`, así que el tier de lectura necesita un modelo pago | repo del harness, este cambio |
-| Antigravity: `tools:` por tier medido, `agy-contract` en CI | `1422602`, `9a1e131` |
-| `shared` y `antigravity` no se mezclan en un mismo proyecto | `ee89899` |
-
-### Pendiente
-
-| Prioridad | Qué | Por qué |
-|---|---|---|
-| P2 | Carpetas de prueba del harness como su propia raíz de git (`git init`) | Viven dentro del repo del harness: un agente usó `git rev-parse --show-toplevel` e intentó buscar en él |
-| P2 | `agent-does-not-install-tools` debe habilitar su premisa (`allow: "Bash(lsd:*)"`) | En sesión neutral `lsd` se bloquea antes de ejecutarse y el agente no puede ver que no está instalado |
-| P2 | **Reglas que chocan o son absolutas** (revisión externa, citas verificadas): CORE "No fix for a bug you haven't observed" contra `verification` ("the fix is a hypothesis and must be labeled"); `next-step` "the file wins" sin criterio de vigencia; `orchestration` "and nothing else" deja afuera restricciones vigentes; `test-design` "Deterministic or deleted" puede borrar evidencia de un defecto intermitente; `apple-dev/code-review` "One concept per review" puede omitir otros bloqueantes | Cada una es un cambio de criterio: escenario contra la versión anterior antes de tocarla (regla 17) |
-| P3 | **Calibrar absolutos**: `visual-craft` ("an arbitrary `13px` is a bug"), `focus` ("quality — never"), `engagement` (novedad de 2–4 semanas como dato y no como hipótesis), `devops` ("automate anything you do twice"), `code-health` (umbrales como señales, no órdenes) | No hay fallo medido; son riesgos de calibración |
-| P3 | **Privacidad en `llm-integration` y `data-pipelines`**: autorización sobre documentos recuperados, aislamiento de cachés, revocación de acceso; conciliar la capa cruda inmutable con minimización, retención y borrado | Contenido que falta, no un error. Escenario útil: revocar un documento y comprobar que no reaparece desde una respuesta cacheada |
-| P2 | **Experimental: que los agentes carguen sus skills.** Opciones a medir: una instrucción en el CORE ("antes de responder en tu dominio, cargá la skill cuyo disparador coincide"), disparadores más claros, o nombrar el tema en el cuerpo del agente como pasó con el PM. Es una posibilidad, no un plan: puede que el modelo no la siga, y si no se sigue, la alternativa es llevar al cuerpo solo los criterios que no se pueden perder, agente por agente | Medir con la suite completa (el CORE va inlineado en todos), ~USD 10. Pista: al nombrar el tema en el cuerpo del PM, cargó `discovery` 3/3 |
-| P2 | **Resistencia a contenido malicioso**: escenarios donde un archivo o el resultado de una herramienta intenta manipular al agente; se observan acciones, archivos y permisos, no solo lo que el agente dice | El catálogo sabe de prompt injection (`threat-modeling`, `code-audit`) pero nada prueba cómo actúa un agente frente a ella, y los agentes leen repos ajenos |
-| P3 | **CORE más corto, medido**: comparar el CORE actual con una variante compacta en el harness, midiendo consumo y cumplimiento | Se inlinea en cada agente; solo vale si no empeora el cumplimiento. Depende de la trazabilidad |
-| P3 | Publicar las skills como plugin de Agent Plugins | **En espera.** Los agentes, que son el valor central del catálogo, no son portables en la 1.0; sin registro definido, publicar no ahorra nada frente a `install.py`; Claude Code no lo soporta; requiere Codex 0.146+. Revisar si la especificación suma agentes o un registro |
-| P3 | Modo opcional con enlaces simbólicos para las skills | **En espera.** Medido que los cuatro hosts siguen los enlaces, pero: el catálogo NO puede ser el destino, porque las skills se instalan transformadas (`render_skill` reescribe los links entre skills); el destino tendría que ser una copia ya instalada (por ejemplo `~/.agents/skills`), que si se borra rompe a todos los hosts a la vez; en Windows crear enlaces requiere permisos. Con `--refresh` el problema que resolvía ya está cubierto |
-
-Al revisar este documento, cada fila pendiente se mueve a "Hecho" con su commit,
-o se descarta con el motivo.
+El trabajo que sale de este relevamiento vive en [BACKLOG.es.md](BACKLOG.es.md),
+con un ID estable por ítem (`B-NNN`), su criterio de terminado y los commits
+que lo cerraron. Este documento guarda el relevamiento y los hechos medidos;
+cuando un hecho dispara trabajo, se cita su ID.
