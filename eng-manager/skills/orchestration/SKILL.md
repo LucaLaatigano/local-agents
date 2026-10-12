@@ -83,7 +83,9 @@ What crosses the seam is a **path and a contract, not a transcript**: where
 the artifact is, the decision that was made, the question still open. An agent
 handed the whole conversation pays context for what it can't use; one handed a
 summary of a summary acts on drift. Name the file, state the decision, list
-the unknowns — and nothing else.
+the unknowns, and carry what the receiver cannot act correctly without — a
+constraint the user set, a deadline, a doubt you are holding. Nothing that is
+merely history.
 
 ### 5. Parallel when nothing is shared; sequential when one's output is the other's input
 

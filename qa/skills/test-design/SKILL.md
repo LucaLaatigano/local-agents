@@ -40,15 +40,19 @@ assert specific values, not just truthiness. Shared fixtures for the boring
 setup, but the MEANINGFUL data visible in the test itself — a test whose
 critical input hides in a factory five files away can't be read as a story.
 
-### 4. Deterministic or deleted — the flakiness rule
+### 4. Deterministic, or quarantined with an owner — the flakiness rule
 
 A test that fails sometimes is worse than no test: it trains the team to
 retry-until-green, which buries real failures. Flakiness causes are almost
 always: real time (`sleep`, timeouts) → use fake clocks and explicit waits on
 conditions; shared state between tests → isolate per test; network to real
 services → stub the boundary; ordering assumptions → make each test
-self-contained. Quarantine a flaky test the day it flakes, fix it or delete
-it that week — a quarantine that lasts a quarter is a graveyard.
+self-contained. Quarantine a flaky test the day it flakes, with an owner and
+a date, and fix it that week — a quarantine that lasts a quarter is a
+graveyard. Delete it only when the behaviour it guards is covered elsewhere:
+a deleted test on a critical path is a coverage hole that shows up green. And
+a check that is stochastic by nature — a model's output, a latency — is not
+flaky: assert a threshold over N samples, never a single run.
 
 ### 5. Coverage guides, contracts decide
 

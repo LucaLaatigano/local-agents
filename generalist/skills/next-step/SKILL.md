@@ -106,7 +106,11 @@ transcript"](../../../eng-manager/skills/orchestration/SKILL.md) applied to
 yourself across time. On resuming, read the file BEFORE acting: if a "Stop
 if" is already true, the cascade's step 1 fires now, not after redoing the
 work; if the file contradicts what the compacted conversation says was
-decided, the file wins and the disagreement is reported. Rediscovering the
+decided, the file wins and the disagreement is reported. The file outranks
+memory, not evidence: when the workspace shows it moved past the file — the
+"Next" step is already in the code, an "Open" item is closed — the file is
+stale, and that is the finding. Update it before acting, never redo the work
+it forgot it did. Rediscovering the
 plan from the code is the expensive path; restarting from step one is the
 one that looks like progress.
 

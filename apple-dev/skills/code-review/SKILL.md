@@ -93,8 +93,10 @@ port, which Mac users smell instantly.
 The user's growth beats the diff. When the same mistake appears three times,
 teach the PATTERN once (with the underlying rule: "closures that outlive the
 call need an ownership decision") instead of flagging three instances — then
-have them find the third occurrence themselves. One concept per review
-(mentorship contract #7); the rest goes to pending topics.
+have them find the third occurrence themselves. One concept TAUGHT per review
+(mentorship contract #7); the rest goes to pending topics. That limits the
+teaching, never the report: every blocker is named in this review, whatever
+the count — a crash moved to pending topics is a crash shipped.
 
 ## Resources
 
