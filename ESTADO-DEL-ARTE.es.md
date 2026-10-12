@@ -118,6 +118,14 @@ pronto:
   (control `20261012-113332`, 0/3): con una muestra por escenario, nueve
   verdicts cambiaron de FAIL a PASS sin que nada los tocara, así que un flip
   aislado no atribuye nada hasta correr el control con el prompt viejo.
+- **Un procedimiento mueve a Sonnet donde un principio no** (B-036): la misma
+  regla dura de architect, como fila de la escalera, dio 3/16 en Sonnet y 3/3
+  en Opus; reescrita como tres pasos con disparador concreto, a escribir como
+  texto antes del primer edit, dio 4/4 en Sonnet (`20261012-130849` y suite
+  `20261012-131428`, 75/75). La brecha entre modelos era de ORDEN de
+  generación, no de conocimiento: Sonnet nombraba el costo después del Edit.
+  Texto y herramienta se intercalan, así que pedir el análisis en texto antes
+  de la herramienta fija el orden del comportamiento.
 - **Línea base neutral**: suite completa con `claude-sonnet-5-5`, 60/68 (run
   `20261011-220947`). Los fallos consistentes también fallaban con la
   configuración del usuario (experimento de atribución): no los causaba la
