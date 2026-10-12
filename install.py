@@ -557,6 +557,31 @@ def copy_skill(skill: Skill, tool: Tool, name: str, dry_run: bool):
     return name
 
 
+def present_skills(skills_dir: Path, skills_by_name: dict) -> set:
+    """Catalog skills installed in this dir — what a link there can reach."""
+    if not skills_dir.is_dir():
+        return set()
+    return {d.name for d in skills_dir.iterdir()
+            if d.name in skills_by_name and (d / "SKILL.md").is_file()}
+
+
+def relink_skills(tool: Tool, skills_by_name: dict, dry_run: bool):
+    """Re-render every catalog skill in tool.skills_dir against the skills that
+    are actually there, after an install changed that set. Links to a missing
+    skill become its name; a later install that brings it turns the name back
+    into a link."""
+    if dry_run:
+        return
+    present = present_skills(tool.skills_dir, skills_by_name)
+    for name in sorted(present):
+        src = skills_by_name[name]
+        md = tool.skills_dir / name / "SKILL.md"
+        fresh = render_skill((src.path / "SKILL.md").read_text(encoding="utf-8"),
+                             src.agent, name, present)
+        if md.read_text(encoding="utf-8") != fresh:
+            md.write_text(fresh, encoding="utf-8")
+
+
 def install_skill(skill: Skill, tool: Tool, policy: str, interactive: bool, dry_run: bool):
     final = resolve_name(tool.skills_dir, skill.name, "", policy, interactive)
     if final is None:
@@ -656,7 +681,8 @@ def deref_skill_links(body: str) -> str:
     return "\n".join(out)
 
 
-def render_skill(text: str, owner: Optional[str], name: str) -> str:
+def render_skill(text: str, owner: Optional[str], name: str,
+                 available: Optional[set] = None) -> str:
     """Build SKILL.md exactly as it gets installed. Shared with `--status`, so
     the staleness report compares against what the installer would write.
 
@@ -670,11 +696,22 @@ def render_skill(text: str, owner: Optional[str], name: str) -> str:
       if a host renders the file without resolving links.
     - `../../AGENTS.md` / `../../../agent/AGENTS.md` become the agent's NAME:
       agent files land in another directory with a per-tool filename, so no
-      relative path is true everywhere (same reasoning as deref_skill_links)."""
+      relative path is true everywhere (same reasoning as deref_skill_links).
+
+    `available` is the set of skills present next to this one. A link to a
+    skill that is not there becomes its NAME instead of a dead path: a partial
+    install (one agent, one skill) brings the skills it references, not the
+    skills those reference, and measured on 2026-10-11 the 15 single-agent
+    installs left 171 dead links. None means every catalog skill is present
+    (the whole suite)."""
     text = flatten_description(rewrite_skill_name(text, name))
 
     def skill_sub(m):
         label, target = m.group(1), m.group(2)
+        if available is not None and target not in available:
+            if "SKILL.md" in label or "/" in label or target.lower() in label.lower():
+                return f"the `{target}` skill"
+            return f"{label} (the `{target}` skill)"
         if "SKILL.md" in label or "/" in label:
             label = f"`{target}`"           # the label was the path itself
         elif target.lower() not in label.lower():
@@ -682,6 +719,17 @@ def render_skill(text: str, owner: Optional[str], name: str) -> str:
         return f"[{label}](../{target}/SKILL.md)"
     text = re.sub(r"\[([^\]]+)\]\((?:\.\./){2,}[a-z][a-z-]*/skills/([a-z][a-z-]*)/SKILL\.md\)",
                   skill_sub, text)
+    if available is not None:
+        # Sibling links (`../x/SKILL.md`, same agent) need no rewrite in a full
+        # install, but in a partial one the sibling may not be there either.
+        def sibling_sub(m):
+            label, target = m.group(1), m.group(2)
+            if target in available:
+                return m.group(0)
+            if "SKILL.md" in label or "/" in label or target.lower() in label.lower():
+                return f"the `{target}` skill"
+            return f"{label} (the `{target}` skill)"
+        text = re.sub(r"\[([^\]]+)\]\(\.\./([a-z][a-z-]*)/SKILL\.md\)", sibling_sub, text)
 
     def agent_sub(m):
         label, ups, agent = m.group(1), m.group(2).count("../"), m.group(3)
@@ -747,6 +795,7 @@ def install_agent(agent: Agent, tool: Tool, policy: str, interactive: bool,
             nm = install_skill(sk, tool, policy, interactive, dry_run)
             if nm:
                 installed_skill_names.append(nm)
+        relink_skills(tool, skills_by_name, dry_run)
 
     if tool.agents_dir is None:
         print(f"    note   → {tool.label} has nowhere to put an agent body. "
@@ -995,6 +1044,7 @@ def install_suite(tool: Tool, policy: str, interactive: bool, dry_run: bool,
     print("  — skills (each installed once) —")
     for name in sorted(skills_by_name):
         install_skill(skills_by_name[name], tool, policy, interactive, dry_run)
+    relink_skills(tool, skills_by_name, dry_run)
 
     if tool.agents_dir is None:
         print(f"  — {tool.label} has no named-agent slot: skills above are the install. —")
@@ -1075,6 +1125,7 @@ def interactive(agents, all_skills, skills_by_name, policy, dry_run, with_deps, 
         for p in picks:
             if 0 <= p < len(all_skills):
                 install_skill(all_skills[p], tool, policy, True, dry_run)
+        relink_skills(tool, skills_by_name, dry_run)
 
 
 # --------------------------------------------------------------------------- #
@@ -1101,9 +1152,10 @@ def shadow_report(tool: Tool, skills_by_name: dict, project=None) -> list:
         if len(copies) < 2:
             continue
         seen_twice += 1
-        fresh = render_skill((src.path / "SKILL.md").read_text(encoding="utf-8"),
-                             src.agent, name)
+        text = (src.path / "SKILL.md").read_text(encoding="utf-8")
         for d in copies:
+            fresh = render_skill(text, src.agent, name,
+                                 present_skills(d, skills_by_name))
             if (d / name / "SKILL.md").read_text(encoding="utf-8") != fresh:
                 stale_in[d] = stale_in.get(d, 0) + 1
     if not stale_in:
@@ -1141,6 +1193,7 @@ def print_status(agents, skills_by_name, project=None, catalog=None):
 
         # --- skills: re-rendered by the same path the installer writes ---
         present, foreign, stale = [], [], []
+        here = present_skills(tool.skills_dir, skills_by_name)
         if tool.skills_dir.exists():
             for d in sorted(p for p in tool.skills_dir.iterdir() if p.is_dir()):
                 src = skills_by_name.get(d.name)
@@ -1149,7 +1202,7 @@ def print_status(agents, skills_by_name, project=None, catalog=None):
                     continue
                 present.append(d.name)
                 a, b = src.path / "SKILL.md", d / "SKILL.md"
-                fresh = render_skill(a.read_text(encoding="utf-8"), src.agent, d.name)
+                fresh = render_skill(a.read_text(encoding="utf-8"), src.agent, d.name, here)
                 if not b.exists() or fresh != b.read_text(encoding="utf-8"):
                     stale.append(d.name)
         missing = sorted(set(skills_by_name) - set(present))
@@ -1338,6 +1391,7 @@ def main():
                 sys.exit(f"unknown skill '{ref}'. Use --list to see options.")
             print(f"\n  Installing skill '{sk.qualified}' → {tool.label}")
             install_skill(sk, tool, args.on_conflict, False, args.dry_run)
+        relink_skills(tool, skills_by_name, args.dry_run)
         return
 
     # Interactive path

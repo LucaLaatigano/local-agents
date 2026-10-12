@@ -631,6 +631,37 @@ def check_installer(cat: Catalog):
     return errs
 
 
+def check_partial_installs(cat: Catalog):
+    """Installing ONE agent must leave no dead link between the skills it got.
+    `installed-skills` only covers the whole suite, and that is how this went
+    unseen: measured 2026-10-11, the 15 single-agent installs carried 171 links
+    to skills they had not installed."""
+    errs = []
+    env = {k: v for k, v in os.environ.items()
+           if k not in ("CLAUDE_CONFIG_DIR", "CODEX_HOME")}
+    for agent in sorted(cat.agents):
+        with tempfile.TemporaryDirectory() as home:
+            env.update(HOME=home, USERPROFILE=home)
+            proc = subprocess.run([sys.executable, str(cat.root / "install.py"),
+                                   "--agent", agent, "--tool", "claude",
+                                   "--on-conflict", "overwrite"],
+                                  capture_output=True, text=True, env=env,
+                                  stdin=subprocess.DEVNULL)
+            if proc.returncode != 0:
+                errs.append(f"install.py --agent {agent} exited {proc.returncode}")
+                continue
+            skills = Path(home) / ".claude" / "skills"
+            have = {d.name for d in skills.iterdir()} if skills.is_dir() else set()
+            dead = sorted({t for f in skills.glob("*/SKILL.md")
+                           for t in re.findall(r"\]\(\.\./([a-z][a-z-]*)/SKILL\.md\)",
+                                               f.read_text(encoding="utf-8"))
+                           if t not in have})
+            if dead:
+                errs.append(f"--agent {agent}: installed skills link to skills it did "
+                            f"not install: {', '.join(dead[:6])}")
+    return errs
+
+
 def check_skill_descriptions(cat: Catalog):
     """Every installed SKILL.md carries its description on ONE line, saying
     exactly what the catalog's block scalar says. Measured on kiro-cli 2.29.1:
@@ -1028,6 +1059,7 @@ CHECKS = [
     ("agy-contract", "Antigravity tools lists match the recipe in USAGE.md", check_agy_contract),
     ("install-stamp", "the install stamp is dirty only when installed content changed", check_install_stamp),
     ("skill-descriptions", "installed skill descriptions are one line and match the catalog", check_skill_descriptions),
+    ("partial-installs", "a single-agent install leaves no dead skill links", check_partial_installs),
     ("readme-counts", "README roster matches reality", check_readme_counts),
     ("reference-roster", "REFERENCE.es.md lists every agent (Spanish guide)", check_reference_roster),
     ("installer", "install.py --list, --dry-run, real installs, stale-copy warning, --refresh, .agents/ guard", check_installer),

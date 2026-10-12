@@ -148,7 +148,8 @@ Cómo se midió cada cosa, y cómo repetirlo, está en los comentarios de
 | El registro de instalación solo marca `dirty tree` si cambió algo que se instala (agentes, skills, `install.py`); chequeo `install-stamp` en CI | este cambio |
 | Medido: los cuatro hosts (opencode, Claude Code, agy, Codex) siguen un enlace simbólico a una skill de proyecto | este documento |
 | opencode: el aviso de `shadowing` incluye `.claude/skills` del proyecto, y el comando sugerido lleva `--project` | este cambio |
-| Kiro medido. Descripciones de skills instaladas en una sola línea para todos los hosts (chequeo `skill-descriptions`); herramientas por tier medidas: `read` = read, grep, glob, web_fetch, web_search, subagent; `full` = todas | este cambio |
+| Kiro medido. Descripciones de skills instaladas en una sola línea para todos los hosts (chequeo `skill-descriptions`); herramientas por tier medidas: `read` = read, grep, glob, web_fetch, web_search, subagent; `full` = todas | `6d2b934` |
+| Instalaciones parciales sin links rotos: un link a una skill que no se instaló pasa a ser su nombre, y vuelve a ser link cuando otra instalación la trae (antes: 171 links rotos en las 15 instalaciones de un solo agente; chequeo `partial-installs`) | este cambio |
 | Antigravity: `tools:` por tier medido, `agy-contract` en CI | `1422602`, `9a1e131` |
 | `shared` y `antigravity` no se mezclan en un mismo proyecto | `ee89899` |
 
@@ -156,7 +157,11 @@ Cómo se midió cada cosa, y cómo repetirlo, está en los comentarios de
 
 | Prioridad | Qué | Por qué |
 |---|---|---|
+| P1 | **Herencia declarada en el frontmatter** (por ejemplo `inherits: [generalist, senior-dev]`), con `validate.py` comparando lo declarado contra lo que incorpora el instalador | Hoy la herencia se detecta por una frase ("reasoning model", "peer contract") a menos de 140 caracteres de un link: reescribir esa oración instala el agente sin el CORE de su padre, sin aviso |
+| P1 | **Trazabilidad del harness**: cada corrida registra el commit del harness, una huella de escenarios y criterios, la versión del CLI y el modelo efectivo | Hoy `run.json` guarda el commit del catálogo y `"model": "(cli default)"`; sin esto no se puede comparar una corrida vieja con una nueva |
 | P1 | **Suite de humo por host** en el harness: por host, que el agente cargue con su identidad, que el de solo lectura no pueda escribir y que el completo sí. Verifica archivos, sin juez. Reemplaza la "rutina de re-medición" y el "harness para más hosts" | Lo medido envejece con cada versión (consideración 3), y la regla 17 hoy solo se prueba en Claude Code. Es lo que se hizo a mano el 2026-10-11, repetible |
+| P2 | **Resistencia a contenido malicioso**: escenarios donde un archivo o el resultado de una herramienta intenta manipular al agente; se observan acciones, archivos y permisos, no solo lo que el agente dice | El catálogo sabe de prompt injection (`threat-modeling`, `code-audit`) pero nada prueba cómo actúa un agente frente a ella, y los agentes leen repos ajenos |
+| P3 | **CORE más corto, medido**: comparar el CORE actual con una variante compacta en el harness, midiendo consumo y cumplimiento | Se inlinea en cada agente; solo vale si no empeora el cumplimiento. Depende de la trazabilidad |
 | P3 | Publicar las skills como plugin de Agent Plugins | **En espera.** Los agentes, que son el valor central del catálogo, no son portables en la 1.0; sin registro definido, publicar no ahorra nada frente a `install.py`; Claude Code no lo soporta; requiere Codex 0.146+. Revisar si la especificación suma agentes o un registro |
 | P3 | Modo opcional con enlaces simbólicos para las skills | **En espera.** Medido que los cuatro hosts siguen los enlaces, pero: el catálogo NO puede ser el destino, porque las skills se instalan transformadas (`render_skill` reescribe los links entre skills); el destino tendría que ser una copia ya instalada (por ejemplo `~/.agents/skills`), que si se borra rompe a todos los hosts a la vez; en Windows crear enlaces requiere permisos. Con `--refresh` el problema que resolvía ya está cubierto |
 
