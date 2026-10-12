@@ -110,6 +110,14 @@ pronto:
 - **El orden de los CORE no cambia el comportamiento observable**: `devops` con
   los dos órdenes, 4/4 en ambos (Sonnet, 1 muestra; runs `20261011-211529` y
   `20261011-211554`).
+- **Un CORE un 25 % más corto no baja la tasa de PASS** (B-027): 1313 → 986
+  palabras quitando racional y anécdotas y dejando la cláusula que cada
+  escenario demostró discriminante. Suite completa `20261012-111015`: 65/68 en
+  los escenarios comunes contra 60/68 de la base, costo del agente −5,6 %. El
+  único rojo con causa plausible en el recorte falló igual con el CORE largo
+  (control `20261012-113332`, 0/3): con una muestra por escenario, nueve
+  verdicts cambiaron de FAIL a PASS sin que nada los tocara, así que un flip
+  aislado no atribuye nada hasta correr el control con el prompt viejo.
 - **Línea base neutral**: suite completa con `claude-sonnet-5-5`, 60/68 (run
   `20261011-220947`). Los fallos consistentes también fallaban con la
   configuración del usuario (experimento de atribución): no los causaba la
