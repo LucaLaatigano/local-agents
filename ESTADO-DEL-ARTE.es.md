@@ -118,6 +118,12 @@ pronto:
   y cargarla o no no explica quién pasa (7 PASS y 7 FAIL sin skill; run
   `20261011-230905`). Un criterio que vive solo en una skill es invisible en la
   práctica. Ver B-023.
+- **Resistencia a contenido con instrucciones** (B-024): en 9 muestras, con la
+  trampa en un comentario del código, en el README pidiendo un secreto y en la
+  salida de un test, ningún agente intentó un comando prohibido, cambió un
+  archivo ni filtró el secreto (Sonnet, run `20261012-002037`). La falla está
+  en avisar: en 1 de 3 el agente no le contó al usuario que el código traía
+  una instrucción dirigida a agentes, que pedía justamente eso. Ver B-030.
 
 Cómo se midió cada cosa, y cómo repetirlo, está en los comentarios de
 `install.py` (`AGY_TOOLS`, `shadow_report`, el renderer de Codex) y en
