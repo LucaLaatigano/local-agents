@@ -55,8 +55,67 @@ guarda el relevamiento y los hechos medidos; acá va lo que hay que hacer.
 | B-048 | P3 | pendiente | Harness: los conteos de escenarios en la doc quedaron viejos | El README dice 34 escenarios y la GUIA 39; `run.py --list` da 83 | Ningún número de escenarios escrito a mano en README ni GUIA (se genera desde `--list` o se remite a él), y cada costo de la GUIA cita la corrida de la que sale |
 | B-049 | P3 | pendiente | `validate.py` revisa los detalles `### B-NNN` del backlog | La convención es nueva y la regla 12 pide chequear las convenciones; un detalle huérfano o que sobrevive al cierre es exactamente la deriva que el chequeo `backlog` ya evita en las filas | `check_backlog` falla si un `### B-NNN` no tiene fila abierta, o si un ítem cerrado conserva su detalle, y `validate.py` pasa |
 
-Orden sugerido: el paso 0 de B-047, que es gratis, y según su respuesta B-044
-→ B-039 → B-038.
+### Orden de trabajo de B-038 a B-049
+
+Salen de la comparación con la industria del 2026-10-12 (ESTADO-DEL-ARTE §3).
+Las dependencias de cada detalle mandan; esto las pone en secuencia y marca
+dónde hay que frenar a decidir.
+
+**Fase 0: gratis, sin consultar al modelo.** Se puede hacer en una sesión,
+en cualquier orden.
+
+1. **Paso 0 de B-047.** Va primero porque cambia el plan. Si
+   `claude plugin eval` evalúa agentes y skills instalados sin empaquetarlos,
+   B-044 y B-038 se rediseñan sobre la herramienta oficial antes de escribir
+   código en `run.py`.
+2. **B-042.** Medir qué ve Codex de la copia instalada de `llm-integration`.
+3. **B-049**, y **B-048** en el repo del harness.
+4. **B-046**, la medición previa: si el chequeo gratis de claude corre sin
+   credenciales. El job de CI viene después.
+
+> **Decisión 1:** con la respuesta del paso 0 de B-047, ¿la herramienta
+> oficial o `run.py`? Si es la oficial, se completa B-047 (unos pocos dólares,
+> con OK) y se reescriben los detalles de B-044 y B-038 antes de seguir.
+
+**Fase 1: el tope de costo.**
+
+5. **B-044.** Sin modelo; es el primer test del harness. Protege todas las
+   corridas que siguen, así que ninguna fase posterior arranca sin él.
+
+**Fase 2: medir al instrumento.**
+
+6. **B-039, la parte de código:** que cada muestra persista lo que leyó el
+   juez y el hash del criterio.
+7. **B-039, la suite** que genera muestras con esa persistencia (~USD 10, con
+   OK).
+8. **B-039, el etiquetado.** Es trabajo humano: ~40 veredictos etiquetados
+   sin ver el del juez, con el 40 % reservado desde el principio. Es la parte
+   que más tiempo lleva y no se delega.
+9. **B-040**, solo si el etiquetado dejó respuestas `ambigua`. Si no, se
+   descarta.
+
+> **Decisión 2:** ¿el juez llega a TNR ≥ 0,90? Si no llega, se arregla el juez
+> antes de la fase 3. Un Δ medido con un juez que aprueba fallas no dice nada.
+
+**Fase 3: medir al catálogo.**
+
+10. **B-038.** La rama sin agente (~USD 10, con OK, más las repeticiones N/3
+    de los Δ = 0). Es el ítem que más enseña del catálogo: cuánto aporta cada
+    persona.
+
+**En paralelo, en cualquier momento después de B-044.** Son independientes
+entre sí y cada una pide su OK de costo:
+
+- **B-043**, pares de routing (unos pocos dólares). Es la más barata y la que
+  puede tocar descripciones.
+- **B-041**, disparo de skills (~USD 8).
+- **B-045**, reglas duras bajo presión (~USD 4).
+
+**Para retomar en una sesión nueva:** leer esta sección y el detalle del
+próximo ítem; correr `git log` en los dos repos para ver qué se cerró
+(los cierres citan commits). Los números de línea citados en los detalles
+(`run.py:885`, `viz.py:292`…) son del 2026-10-12: se vuelven a ubicar antes de
+editar.
 
 ### B-047: `claude plugin eval` frente a `run.py`
 
