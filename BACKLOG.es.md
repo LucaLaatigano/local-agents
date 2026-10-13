@@ -25,6 +25,13 @@ guarda el relevamiento y los hechos medidos; acá va lo que hay que hacer.
   `descartado` dice por qué.
 - Si un ítem resulta ser otra cosa al investigarlo, se cierra como
   `descartado` con el motivo y se abre uno nuevo. No se reescribe la historia.
+- Si un ítem abierto no entra en una fila, lleva un detalle debajo de la tabla
+  (`### B-NNN`): qué se busca, criterios de aceptación, costo y dependencias.
+  La fila es el resumen; el corte es la fila MÁS todos los criterios del
+  detalle, salvo los marcados como opcionales. Al cerrar el ítem, el detalle se
+  borra y lo que valga la pena queda en la fila de cerrados.
+- Un ítem que necesita corridas del harness dice cuánto cuesta. Esas corridas
+  se proponen con su costo y se lanzan solo con un OK explícito.
 
 ---
 
@@ -35,6 +42,299 @@ guarda el relevamiento y los hechos medidos; acá va lo que hay que hacer.
 | B-032 | P3 | pendiente | El chequeo `skill` de la suite de humo en opencode pasa viendo una copia GLOBAL de la skill, no la que escribió la instalación del proyecto | opencode elige una copia por nombre (a veces la global), así que ese PASS no prueba lo que el chequeo dice probar | El chequeo verifica la copia del proyecto (o se aísla de las globales) y lo dice en su detalle |
 | B-028 | P3 | en espera | Publicar las skills como plugin de Agent Plugins | La 1.0 no porta agentes y no define dónde se publica; Claude Code no la soporta | La especificación suma agentes o un registro común: entonces se reevalúa |
 | B-029 | P3 | en espera | Modo opcional con enlaces simbólicos para las skills | Los cuatro hosts siguen los enlaces, pero el destino no puede ser el catálogo (las skills se instalan transformadas) y `--refresh` ya cubre el problema | Aparece un caso que `--refresh` no resuelve |
+| B-047 | P1 | pendiente | Comparar `claude plugin eval` con `run.py`, empezando por si puede evaluar agentes instalados | La herramienta oficial ya trae ramas CON y SIN, 2 de 3 votos, tope de costo y JSON versionado; si sirve para el catálogo, B-038 y B-044 no se construyen en `run.py` | El paso 0 está respondido con evidencia; si responde que sí, 3 escenarios corridos en ambas herramientas, comparación en ESTADO-DEL-ARTE y una decisión registrada (adoptar, adaptar su formato o no usarla) |
+| B-044 | P1 | pendiente | Harness: tope de costo por corrida (`--max-cost-usd`) | Hoy solo hay una estimación en `--dry-run`; B-038, B-041 y B-045 multiplican el gasto y nada corta una corrida que se dispara | Las muestras pasan por una compuerta de presupuesto; al llegar al tope, `run.json` registra `capped: true` y el exceso, `viz.py` nunca usa esa corrida como línea base aunque cubra todos los IDs, y el primer test del harness lo demuestra sin modelo |
+| B-039 | P1 | pendiente | Harness: calibrar el juez contra etiquetas humanas | Ningún veredicto del juez se comparó nunca con un humano; toda la evidencia del catálogo descansa en él (ESTADO-DEL-ARTE §3 y §5.7) | Cada muestra persiste lo que leyó el juez; hay ≥ 20 PASS y ≥ 20 FAIL etiquetados a mano; TPR y TNR medidos sobre un 40 % reservado, por modelo de juez, anotados en ESTADO-DEL-ARTE; TNR ≥ 0,90 o un ítem abierto para corregirlo |
+| B-038 | P1 | pendiente | Harness: rama sin agente para medir cuánto aporta cada persona (Δ) | Un escenario que pasa igual sin agente mide al modelo base, no al catálogo (ESTADO-DEL-ARTE §5.8); `claude plugin eval` y skill-creator reportan Δ, nosotros no | La rama SIN corre sin agentes ni skills en el workspace, queda como `branch: without` y nunca es línea base; `viz.py` muestra CON, SIN y Δ; cada Δ = 0 confirmado en N/3 quedó reformulado o con `protects:` y su motivo |
+| B-040 | P2 | pendiente | Harness: veredicto INDETERMINADO del juez | Hoy un caso ambiguo se fuerza a PASS o FAIL; superpowers y Anthropic le dan al juez la opción "no se puede saber" | El juez puede responder INDETERMINADO, que nunca cuenta como PASS y con `--repeat` deja el escenario INDETERMINADO; `viz.py` lo muestra aparte; una respuesta ambigua fija, vuelta a juzgar, lo produce 3/3; o el ítem se descarta si B-039 no encontró ambiguas |
+| B-041 | P2 | pendiente | Evals de disparo de skills con casi-aciertos | B-023 subió la carga de 8/72 a 19/72 pero solo midió dónde DEBE cargar; nunca dónde no debe | Existen `expect_skills` y `forbid_skills`; ≥ 6 skills con ≥ 4 consultas que deben dispararla y ≥ 4 casi-aciertos que no, cada una con su agente dueño; precisión y exhaustividad registradas como línea base, no como objetivo |
+| B-042 | P2 | pendiente | Medir el tope de tamaño de skill en Codex | wshobson parte las skills en ~8 KB porque Codex corta ahí; `llm-integration` pesa 10.999 bytes en la fuente (medido) y no sabemos si Codex la recibe entera | El comportamiento de Codex con la copia INSTALADA de una skill > 8 KB está medido con versión en la tabla de hosts y, si corta, hay un chequeo de tamaño en `validate.py` o el instalador lo resuelve |
+| B-043 | P2 | pendiente | Escenarios de routing con pares que se confunden | Los 7 de routing tienen un destino obvio; ninguno enfrenta a dos agentes vecinos (architect y senior-dev, dba y data-ml, PM y visionary, eng-manager y PM, qa y security) | ≥ 5 pares de escenarios de routing, uno por frontera, corridos en N/3, y las descripciones que fallen ajustadas con su par en verde y los 7 viejos todavía en verde |
+| B-045 | P3 | pendiente | Variantes bajo presión de las reglas duras, con las excusas registradas | superpowers encuentra fallas apilando presiones (apuro, autoridad, costo hundido) y anotando la excusa textual; las hard-rules hoy se prueban sin presión | Cada hard-rule de juicio (sin los dos gemelos de puerta) tiene una variante bajo presión corrida en N/3 contra la versión actual, y las excusas de las muestras rojas están citadas textuales |
+| B-046 | P3 | pendiente | Humo gratis de `smoke.py` en CI | `smoke.py` corre solo local; wshobson instala los CLI reales en CI | `smoke.py --free-only` corre en el CI del harness para claude, opencode y kiro con versiones fijadas, o el ítem se descarta con el dato de qué chequeo pide credenciales |
+| B-048 | P3 | pendiente | Harness: los conteos de escenarios en la doc quedaron viejos | El README dice 34 escenarios y la GUIA 39; `run.py --list` da 83 | Ningún número de escenarios escrito a mano en README ni GUIA (se genera desde `--list` o se remite a él), y cada costo de la GUIA cita la corrida de la que sale |
+| B-049 | P3 | pendiente | `validate.py` revisa los detalles `### B-NNN` del backlog | La convención es nueva y la regla 12 pide chequear las convenciones; un detalle huérfano o que sobrevive al cierre es exactamente la deriva que el chequeo `backlog` ya evita en las filas | `check_backlog` falla si un `### B-NNN` no tiene fila abierta, o si un ítem cerrado conserva su detalle, y `validate.py` pasa |
+
+Orden sugerido: el paso 0 de B-047, que es gratis, y según su respuesta B-044
+→ B-039 → B-038.
+
+### B-047: `claude plugin eval` frente a `run.py`
+
+**Qué se busca.** Decidir con datos si la herramienta oficial reemplaza,
+complementa o solo inspira al harness, antes de construir en `run.py` lo que
+ella ya trae (Δ, tope de costo).
+
+**Criterios de aceptación.**
+- **Paso 0, gratis.** Verificar con la doc y la versión instalada de Claude
+  Code si `claude plugin eval` puede evaluar agentes y skills instalados sin
+  empaquetar el catálogo como plugin, que hoy no es (B-028 en espera). Queda
+  anotado con versión y fecha.
+- Si exige plugin, el ítem se cierra como `descartado` con ese dato, y B-038 y
+  B-044 siguen en `run.py`.
+- Si no lo exige, tres escenarios de categorías distintas (una hard-rule
+  que NO dependa del tier de acceso, un handoff y uno con `expect_files`) se
+  portan a su formato y se corren en ambas herramientas. Las hard-rules de
+  acceso no se comparan, porque un agente dentro de un plugin pierde
+  `permissionMode` (ESTADO-DEL-ARTE §3).
+- La comparación queda anotada en ESTADO-DEL-ARTE: veredictos, costo,
+  aislamiento y lo que cada una no puede expresar. La decisión se registra
+  en este backlog.
+
+**Costo.** El paso 0 es gratis. La comparación: dos herramientas × 3
+escenarios × 3 corridas, unos pocos dólares; del lado oficial con su propio
+`--max-cost-usd`.
+**Depende de.** Nada. Va primero porque puede cambiar el alcance de B-038 y
+B-044.
+
+### B-044: tope de costo por corrida
+
+**Qué se busca.** Que ninguna corrida pueda gastar más de lo autorizado. El
+tope es la contraparte mecánica de la regla de trabajo "ninguna corrida sin
+preguntar": la pregunta fija el monto y el flag lo hace cumplir.
+
+**Criterios de aceptación.**
+- Las muestras dejan de encolarse de una vez (`pool.map` sobre todas las
+  tareas) y se lanzan detrás de una compuerta de presupuesto. Con el tope
+  alcanzado no sale ninguna muestra nueva; las que están en vuelo terminan,
+  así que el exceso máximo es el de `--jobs` muestras.
+- Los jueces de las muestras ya lanzadas siempre corren: una muestra sin
+  veredicto es plata tirada.
+- `run.json` registra `capped: true`, el tope, el costo real y el exceso. No se
+  usa la palabra `partial`, que en `viz.py` ya tiene dos significados.
+- `viz.py` nunca toma una corrida `capped` como línea base, aunque cubra
+  todos los IDs. Con `--repeat` las pasadas son de suite entera, así que una
+  corrida cortada en la segunda pasada parecería completa.
+- La estimación por muestra deja de ser `COST_PER_CALL` fijo para los
+  escenarios con delegación, que cuestan unos USD 3.
+- `--dry-run` muestra el tope junto a la estimación.
+- El harness no tiene tests todavía: este es el primero. Usa un ejecutor falso
+  de costo fijo y no llama al modelo.
+
+**Costo.** Cero: no necesita corridas reales.
+**Depende de.** Paso 0 de B-047. Si la herramienta oficial sirve, este ítem se
+reevalúa antes de construirlo.
+
+### B-039: calibrar el juez
+
+**Qué se busca.** Saber cuánto acierta el juez. Un juez con TNR baja aprueba
+fallas y hace que el catálogo parezca mejor de lo que es; uno con TPR baja
+manda a corregir reglas que funcionan.
+
+**Criterios de aceptación.**
+- **Previo:** cada muestra persiste lo que el juez leyó (`reply.graded`, la
+  transcripción completa, no solo `reply.text`) y el hash del criterio con el
+  que se juzgó. Sin eso, volver a juzgar no le da al juez la misma entrada.
+- Un set de etiquetas (`labels/` en el harness) con ≥ 20 PASS y ≥ 20 FAIL de
+  corridas que ya persisten lo anterior. Las elige y las etiqueta un humano sin
+  ver el veredicto del juez; cubren al menos 4 categorías y fijan el texto del
+  criterio vigente al etiquetar.
+- Un 40 % del set queda reservado desde el principio. Los desacuerdos del 60 %
+  restante se usan para corregir criterios; TPR y TNR se reportan SOLO sobre
+  el reservado, la misma disciplina que skill-creator usa con las
+  descripciones.
+- Un modo de `run.py`, o un script aparte, vuelve a juzgar sin volver a correr
+  el agente. Se mide con el juez por defecto (Opus) y con Sonnet, y la cifra y
+  la fecha van a ESTADO-DEL-ARTE (sección 4).
+- Cada desacuerdo se resuelve de una de tres formas, registrada: criterio
+  corregido, etiqueta revisada, o **ambigua** (ni el humano puede decidir con
+  esa respuesta). Las ambiguas alimentan B-040.
+- Umbral: TNR ≥ 0,90 en el reservado. Si no se alcanza, se abre un ítem para
+  el juez antes de usar sus veredictos como evidencia de cambios nuevos.
+
+**Costo.** Volver a juzgar ~40 respuestas cuesta centavos. El costo real es el
+tiempo de etiquetar a mano, y una suite para tener muestras que persistan
+`graded` (unos USD 10, con el tope de B-044).
+**Depende de.** B-044 para la suite.
+
+### B-038: rama sin agente (Δ)
+
+**Qué se busca.** Separar lo que aporta el catálogo de lo que el modelo base
+ya hace solo. Si `qa-never-fixes-product` pasa igual con un Sonnet sin agente,
+ese PASS no prueba la regla de qa.
+
+**Criterios de aceptación.**
+- La rama SIN corre en la misma sesión neutral pero sin `--agent` y **sin
+  copiar agentes ni skills al workspace**: hoy `make_workspace` llama siempre a
+  `shadow_agents` y `shadow_skills` (`run.py:885-886`), así que quitar
+  `--agent` solo no saca el catálogo.
+- Cada escenario donde no aplica lo declara antes de correr (`no_agent: skip`,
+  campo nuevo) con su motivo: al menos `routing`, `handoff`, `composition` y
+  los que tienen `delegate`, porque necesitan agentes a quién derivar.
+- `run.json` registra `branch: without`. `viz.py` nunca la toma como línea
+  base ni como veredicto vigente: hoy elegiría la última corrida completa y
+  neutral (`viz.py:292`), y una pasada SIN lo es.
+- `viz.py --compare` muestra CON, SIN y Δ por escenario y por categoría.
+- Primera corrida: una muestra por escenario en la rama SIN. Los escenarios
+  con Δ = 0 se repiten en N/3 en ambas ramas antes de concluir nada.
+- Cada Δ = 0 confirmado se reformula para que discrimine (con su baseline,
+  regla 17) o lleva `protects:` (campo nuevo) con el motivo, y deja de
+  contarse como evidencia de una regla.
+- El Δ por agente queda anotado en ESTADO-DEL-ARTE: cuánto aporta cada
+  persona.
+
+**Costo.** Una pasada SIN cuesta como mucho lo que una suite, unos USD 10 al
+costo registrado (menos, por los escenarios que se saltean); las repeticiones
+N/3 solo para los Δ = 0. Se propone con su costo antes de correr.
+**Depende de.** Paso 0 de B-047, B-044 y B-039 (para creerle al juez en ambas
+ramas).
+
+### B-040: veredicto INDETERMINADO
+
+**Qué se busca.** Que el juez pueda decir "con esta respuesta no se puede
+saber" en lugar de tirar una moneda. Hoy ERROR cubre solo una respuesta
+imposible de leer.
+
+**Criterios de aceptación.**
+- El prompt del juez admite `INDETERMINATE` en la primera línea, con una
+  frase que explique qué falta.
+- INDETERMINADO nunca suma como PASS. Con `--repeat`, una sola muestra
+  indeterminada deja el escenario INDETERMINADO, que se reporta aparte de
+  FLAKY.
+- `viz.py` lo muestra aparte y cuenta cuántos hubo por corrida.
+- Prueba sin agente: se vuelve a juzgar una respuesta ambigua fija (una de las
+  `ambigua` de B-039) con la herramienta de B-039, y da INDETERMINADO 3/3.
+- En la siguiente suite completa, a lo sumo 3 escenarios salen
+  INDETERMINADO; si son más, el problema son los criterios y se corrigen.
+
+**Costo.** Centavos para la prueba; la suite de control se comparte con la
+siguiente corrida que haya que hacer.
+**Depende de.** B-039. Si la calibración no encuentra ninguna `ambigua`, este
+ítem se cierra como `descartado`.
+
+### B-041: evals de disparo con casi-aciertos
+
+**Qué se busca.** Medir las dos caras de una descripción de skill: que cargue
+cuando debe y que no cargue cuando no. B-023 midió solo la primera; una
+descripción que carga siempre pasaría esa prueba.
+
+**Criterios de aceptación.**
+- Aserciones nuevas `expect_skills` y `forbid_skills`, leídas de las
+  herramientas registradas por muestra (`lane_tools`, `run.py:619`):
+  `forbidden_tools` solo compara el nombre de la herramienta, no qué skill
+  cargó.
+- Para ≥ 6 skills (empezando por las seis de B-023): ≥ 4 consultas que deben
+  dispararla y ≥ 4 casi-aciertos del mismo dominio que no. Ejemplo: para
+  `migrations`, "diseñá la tabla nueva" no debería dispararla. Cada consulta
+  corre con el agente dueño de la skill.
+- Precisión y exhaustividad por skill quedan como **línea base, no como
+  objetivo**. B-023 dejó medido que el modelo no carga lo que el cuerpo ya le
+  da, y que pasa igual: subir la exhaustividad no es una meta por sí misma. Lo
+  que se corrige es la precisión (cargas donde no corresponde).
+- Si una descripción se cambia, se elige con consultas separadas de las que
+  se usaron para escribirla, y la corrida de prueba queda citada. La
+  descripción nueva lista disparadores, no el flujo de la skill (ESTADO-DEL-ARTE
+  §3, superpowers).
+
+**Costo.** ~50 consultas en frío a ~USD 0,17, unos USD 8, sin juez.
+**Depende de.** B-044.
+
+### B-042: tope de tamaño de skill en Codex
+
+**Qué se busca.** Pasar el ~8 KB de wshobson de *reportado* a *medido*.
+Si Codex corta, `llm-integration` hoy llega incompleta, sin aviso, a quien
+la instale ahí.
+
+**Criterios de aceptación.**
+- Se mide sobre la copia que `install.py` deja para Codex, no sobre la fuente:
+  el instalador transforma las skills (B-029), así que el tamaño puede cambiar.
+- Se mide con la prueba más barata posible (mirar qué texto de la skill ve
+  Codex; consultar al modelo solo si no hay otra forma), con versión y fecha.
+  El dato va a la tabla de hosts de ESTADO-DEL-ARTE.
+- Si corta: `validate.py` suma un chequeo de tamaño por host, o el instalador
+  parte la skill en `references/` para Codex, y `llm-integration` deja de
+  pasar el tope.
+- Si no corta: el hecho queda medido y el ítem se cierra sin cambiar código.
+
+**Costo.** Cero o una consulta.
+**Depende de.** Nada.
+
+### B-043: routing con pares que se confunden
+
+**Qué se busca.** Probar las fronteras entre agentes vecinos, que es donde el
+ruteo se equivoca de verdad. Elegir dba para "la consulta tarda 4 segundos" no
+discrimina nada.
+
+**Criterios de aceptación.**
+- ≥ 5 pares: architect / senior-dev, dba / data-ml, product-manager /
+  visionary, eng-manager / product-manager, qa / security. Cada par tiene dos
+  pedidos que se parecen y que deben ir a agentes distintos.
+- Corridos en N/3 contra las descripciones instaladas; la línea base queda
+  registrada.
+- Si algún par falla, se ajusta la **descripción** del agente: la pregunta de
+  routing se arma solo con las descripciones instaladas (`roster_prompt`,
+  `run.py:497`), así que tocar la skill `orchestration` no cambia ese
+  veredicto. El par queda en verde en N/3 y los 7 escenarios de routing viejos
+  siguen en verde.
+
+**Costo.** 10 escenarios × 3 de un solo turno, sin herramientas: unos pocos
+dólares.
+**Depende de.** B-044.
+
+### B-045: reglas duras bajo presión
+
+**Qué se busca.** Encontrar el punto donde una regla dura cede. Las
+hard-rules pasan 3/3 en condiciones tranquilas (B-034); superpowers muestra que
+las fallas aparecen cuando se apilan presiones, y que la excusa textual del
+agente dice qué contra-argumento le falta a la regla.
+
+**Criterios de aceptación.**
+- Una variante por cada hard-rule de juicio. Los dos gemelos de puerta
+  (`*-behind-the-gate`) quedan afuera: prueban la puerta, no el juicio.
+- Cada variante apila al menos dos presiones y mantiene el criterio del
+  original. `run.py` manda un solo prompt, así que el cansancio y el costo
+  hundido se simulan dentro de ese prompt (por ejemplo, contando las horas ya
+  invertidas), no con varios turnos.
+- Corridas en N/3 contra la versión actual.
+- Cada muestra roja deja su excusa citada textual. Si una regla cede, se abre
+  un ítem aparte para reforzarla, y ese ítem corre la variante como baseline.
+
+**Costo.** ~7 escenarios × 3, unos USD 4 al costo de B-034.
+**Depende de.** B-044.
+
+### B-046: humo gratis en CI
+
+**Qué se busca.** Detectar en CI las regresiones del instalador contra los
+hosts reales, que `validate.py` no puede ver.
+
+**Criterios de aceptación.**
+- Corre en el CI del repo del harness, que es donde vive `smoke.py`; el CI del
+  catálogo no tiene el harness.
+- Usa `smoke.py --free-only`, que ya existe y tiene chequeos gratis para
+  claude, opencode y kiro, con versiones fijadas de los tres CLI.
+- Antes de armar el job se mide si el chequeo gratis de claude (abre
+  `claude -p` y lee el evento `init`) funciona sin credenciales. Si no, ese
+  host queda local y el job corre con los otros dos.
+- El README del harness dice qué chequeos corren en CI y cuáles solo en local.
+
+**Costo.** Cero en modelo; minutos de CI.
+**Depende de.** Nada. Si ningún chequeo gratis corre sin credenciales, se
+cierra como `descartado` con el dato.
+
+### B-048: conteos viejos en la doc del harness
+
+**Qué se busca.** Que la doc no contradiga a `run.py --list`.
+
+**Criterios de aceptación.**
+- README y GUIA no dan un número de escenarios escrito a mano: lo generan desde
+  `--list`, o remiten a él.
+- Las estimaciones de costo de la GUIA citan la corrida de la que salen.
+
+**Costo.** Cero.
+**Depende de.** Nada.
+
+### B-049: chequeo de los detalles del backlog
+
+**Qué se busca.** Que la convención de detalles `### B-NNN` no derive: un
+detalle de un ítem cerrado o con un ID que no existe es la misma deriva que el
+chequeo `backlog` ya evita en las filas.
+
+**Criterios de aceptación.**
+- `check_backlog` falla si un `### B-NNN` no tiene su fila en `## Abiertos`.
+- `check_backlog` falla si un ítem en `## Cerrados` conserva su detalle.
+- `validate.py` pasa sobre el backlog actual.
+
+**Costo.** Cero.
+**Depende de.** Nada.
 
 ## Cerrados
 

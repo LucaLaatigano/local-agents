@@ -10,12 +10,13 @@
 > AGENTS.md). Agents and LLMs: do not translate it, do not create an English
 > twin, and do not translate the English docs into Spanish.*
 
-**Relevado el 2026-10-11. Próxima revisión: 2027-01, o antes si un host cambia
-de versión mayor o aparece un estándar nuevo.**
+**Relevado el 2026-10-11; la comparación con otros catálogos y con las
+prácticas de evaluación (sección 3), el 2026-10-12. Próxima revisión: 2027-01,
+o antes si un host cambia de versión mayor o aparece un estándar nuevo.**
 
-Qué está pasando en la industria con los agentes y las skills, qué medimos
-nosotros contra los hosts reales, qué consideraciones salen de eso para el
-catálogo, y el backlog que se desprende. Las recetas y los detalles de cada host
+Qué está pasando en la industria con los agentes y las skills, dónde estamos
+frente a otros catálogos, qué medimos nosotros contra los hosts reales, qué
+consideraciones salen de eso para el catálogo, y el backlog que se desprende. Las recetas y los detalles de cada host
 están en [INSTALL.md](INSTALL.md) y [USAGE.md](USAGE.md); acá solo va lo que no
 se deduce de ellos.
 
@@ -81,7 +82,8 @@ pronto:
   0.146 (*reportado*).
 - Los catálogos que apuntan a varios hosts, como
   [wshobson/agents](https://github.com/wshobson/agents), mantienen una sola
-  fuente y generan la instalación para cada host. *Reportado.*
+  fuente y generan la instalación para cada host. *Documentado* (detalle en la
+  sección 3).
 - Evaluar agentes en tareas largas y con varios agentes sigue sin solución
   estándar; las herramientas actuales cubren bien tareas de un turno y llamadas
   a herramientas ([O'Reilly](https://www.oreilly.com/radar/the-ai-agents-stack-2026-edition/)).
@@ -89,7 +91,176 @@ pronto:
 
 ---
 
-## 3. Lo que medimos nosotros (2026-10-11)
+## 3. Dónde estamos frente a otros catálogos (2026-10-12)
+
+Leímos el repo y la documentación de cada proyecto; **no instalamos ni corrimos
+ninguno**. Salvo que se indique otra cosa, los datos son *documentados* (los
+dice la doc del propio proyecto), y las estrellas y los conteos son
+*reportados* (los mostraba GitHub ese día). Que un proyecto tenga muchas
+estrellas no dice nada de su rigor: el caso más popular de esta lista
+reconoce en su propia doc que su juez LLM no está validado.
+
+### El caso más cercano: wshobson/agents
+
+[wshobson/agents](https://github.com/wshobson/agents) (unas 40.500 estrellas)
+es el que más se parece a este catálogo en arquitectura y el que más se aleja
+en filosofía.
+
+| | wshobson/agents | este catálogo |
+|---|---|---|
+| Tamaño | 94 plugins, 202 agentes, 184 skills, 105 comandos | 15 agentes, 48 skills |
+| Qué define a un agente | El stack (`python-pro`, agentes de Django, de Kubernetes…) | El criterio; el stack lo traen las skills (regla 5) |
+| Fuente única y generación por host | Sí: adaptadores para Codex, Cursor, OpenCode, Copilot, Antigravity y Pi sobre una matriz común (`capabilities.py`); lo generado no se versiona | Sí: `install.py` para 5 hosts, con sello de procedencia (`--status`, `--refresh`) |
+| Distribución | Marketplace de plugins de Claude Code; se instala por plugin | Copia por host o por proyecto; sin marketplace (B-028, en espera) |
+| Topes de tamaño | Archivos de contexto de ~150 líneas; cuerpo de skill de ~8 KB, el límite que le atribuyen a Codex; lo que sobra se parte en `references/` | Ninguno. `llm-integration` pesa 10.999 bytes (*medido*); ver B-042 |
+| Modelo por agente | `model:` en cada agente: 70 sonnet, 54 opus, 52 inherit, 24 haiku, 2 fable | `inherit`; en B-036, el único caso donde Sonnet fallaba y Opus no se resolvió reescribiendo la regla, sin cambiar de modelo |
+| Acceso | `tools:` por agente | `access: read\|full`, traducido a lo que cada host hace cumplir (regla 16) |
+| Orquestación | Cadenas fijas en slash commands (p. ej. backend → base de datos → frontend → tests → seguridad → deploy → observabilidad) | `eng-manager` rutea según dónde está el peso del trabajo; delegar costó ~4× (medido una vez: USD 3,06 contra 0,69) |
+| Validación estática | `make validate` y `make garden` (detector de deriva: links muertos, skills demasiado grandes, plugins huérfanos), cada hallazgo con su remedio | `validate.py` con 25 chequeos y `skills-ref` fijado a un commit, en CI |
+| Humo en hosts reales | En CI instala los CLI de OpenCode, Antigravity y Pi | `smoke.py` para 5 hosts, local: consulta al modelo y necesita credenciales |
+| Evaluación de comportamiento | PluginEval: solo la capa 1 (lint estático) es confiable. Según su doc, el juez LLM hace una llamada por dimensión, sin repeticiones, y "no está validado contra etiquetas humanas"; el test de disparo cuenta como activación cualquier respuesta no vacía y no prueba casos que no deberían dispararlo. Evals sobre trazas reales, en curso | `interaction`: 83 escenarios ejecutables, juez neutral, FLAKY, pisos de modelo, huellas por corrida, baseline con la versión vieja primero (regla 17) |
+
+Detalles que vale la pena retener: la puntuación estática de cada skill se
+guarda junto al sha256 de sus archivos, y un test falla si el puntaje cambia
+sin que cambien los archivos. Así distinguen "cambió la skill" de "cambió el
+evaluador". El `CLAUDE.md` es un enlace simbólico al `AGENTS.md`, el único
+archivo de contexto escrito a mano.
+
+### Los demás
+
+- **[obra/superpowers](https://github.com/obra/superpowers)** (la página
+  mostraba unas 298.000 estrellas; el número es raro, tomarlo con pinzas). 15
+  skills con flujo obligatorio (idear → planificar → ejecutar con subagentes
+  frescos y revisión en dos etapas). Su idea más propia es **TDD para skills**:
+  correr un escenario bajo presión (apuro, costo hundido, autoridad,
+  cansancio) sin la skill, anotar textuales las excusas del agente, escribir
+  la skill mínima que las cierra y sumar una contra-excusa por cada nueva
+  (*tabla de racionalizaciones*). Regla para descripciones: solo disparadores,
+  nunca el flujo, porque cuando la descripción resumía el proceso el agente
+  seguía el resumen y salteaba el cuerpo. Tiene un repo de evals aparte
+  ("Quorum"): conversación guionada, criterios ocultos al agente, veredicto
+  pass, fail o **indeterminado**, costo y trayectoria por corrida, sin
+  reintentos.
+- **[anthropics/skills](https://github.com/anthropics/skills)** (unas 181.000).
+  Es en sí un marketplace y trae la especificación de Agent Skills. Su
+  `skill-creator` corre cada prompt **con y sin la skill** (o con la versión
+  vieja), reporta media ± desvío y la diferencia, señala aserciones que nunca
+  fallan, y optimiza descripciones con 20 consultas: mitad que deberían
+  dispararla y mitad de **casi-aciertos** que no, separadas 60/40 en
+  entrenamiento y prueba, eligiendo por el puntaje de prueba.
+- **[VoltAgent/awesome-claude-code-subagents](https://github.com/VoltAgent/awesome-claude-code-subagents)**
+  (unas 25.700). Más de 161 subagentes en 10 categorías, cada una un plugin,
+  con `tools` y `model` por rol. Sin tests; dice explícitamente que no audita
+  la corrección.
+- **[BMAD-METHOD](https://github.com/bmad-code-org/BMAD-METHOD)** (unas 54.100).
+  Agentes de rol (PM, arquitecto, UX, dev, test) con flujos. Idea propia:
+  proceso que escala con el tamaño del cambio, de construir directo a
+  planificación completa. Sin suite de tests documentada.
+- **SuperClaude Framework** (unas 23.900). Comandos, agentes y "modos" de
+  comportamiento que se inyectan aparte de los agentes. Solo Claude Code. Tiene
+  un workflow de tests sin resultados publicados.
+- **contains-studio/agents** (unas 12.400, 10 commits, probablemente inactivo).
+  Exige 3 o 4 bloques `<example>` en cada descripción, la misma convención que
+  usa este catálogo.
+
+De los siete, solo superpowers y wshobson muestran algo parecido a una
+evaluación de comportamiento, y ninguno publica una línea base con versión
+vieja contra versión nueva.
+
+### Cómo se evalúan agentes y skills
+
+- **`claude plugin eval`** ([doc](https://code.claude.com/docs/en/plugin-evals),
+  Claude Code ≥ 2.1.269, acceso anticipado). Cada caso es un `prompt.md` y sus
+  evaluadores: cuatro gratis (`regex`, `tool_used`, `tool_order`,
+  `file_exists`) y dos con juez (`llm`, que aprueba con 2 de 3 votos, y
+  `baseline` contra una transcripción de referencia). Tres corridas por rama
+  por defecto; con `--ablation with-without` reporta CON, SIN y **Δ**. Trae
+  `--threshold` para CI, `--max-cost-usd` y JSON versionado. `tool_used: Skill`
+  dice si la skill se disparó sin juez. Si el Δ sale negativo con la skill
+  disparada, su consejo es "sospechá del juez antes que del plugin".
+- **Guía de Anthropic** ([Demystifying evals for AI agents](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents)).
+  Evaluar el resultado y no el camino. Primero evaluadores por código, juez
+  donde haga falta, humanos para validarlo. Distinguir pass@k (al menos una de
+  k) de pass^k (las k): con 75 % por intento, pass^3 da ~42 %. Sets
+  balanceados, donde la conducta debe aparecer y donde no. Un juez por
+  dimensión, con la opción "no se puede saber". Leer las transcripciones antes
+  de creerle a un puntaje.
+- **Calibrar el juez.** La práctica que más se repite (Hamel Husain y Shreya
+  Shankar, `evals-skills`; superpowers; Anthropic) es medir al juez contra
+  etiquetas humanas antes de confiar en él: tasa de acierto sobre los PASS y
+  sobre los FAIL (TPR/TNR), con decenas de ejemplos etiquetados de cada lado.
+  *Documentado* el método; la cantidad mínima de etiquetas, *reportada*.
+- **promptfoo y OpenAI** ofrecen jueces por rúbrica, comparación de a pares y
+  evaluadores deterministas sobre la trayectoria de herramientas; OpenAI
+  propone evaluar trazas primero y convertirlas después en datasets. En la
+  comparación de a pares, el sesgo de posición está documentado; el remedio
+  estándar es invertir el orden y quedarse con los veredictos consistentes.
+  *Reportado.*
+
+### El balance
+
+**Donde este catálogo va adelante:**
+
+- Una evaluación de comportamiento sobre el agente instalado, con juez neutral
+  y la versión vieja corrida primero. Lo más cercano es Quorum, de superpowers;
+  la de wshobson está, según su propia doc, sin validar.
+- Entre MUESTRAS del agente, exigir que todas coincidan (FLAKY, sin mayoría)
+  está en el espíritu de pass^k. Pero los 2 de 3 de `claude plugin eval` son
+  otra cosa: votos del JUEZ sobre una misma respuesta. Nuestro juez vota una
+  sola vez, y de ese lado somos más laxos.
+- Huellas por corrida y `--applicability`: saber si un VEREDICTO de
+  comportamiento viejo sigue valiendo sin volver a pagarlo. wshobson hace algo
+  parecido para su puntuación estática (el sha256 de arriba); para veredictos
+  de comportamiento no lo vimos en ningún otro.
+- El acceso declarado y traducido a lo que cada host hace cumplir, con
+  diferencias medidas por host.
+- La regla 17 es, en esencia, el TDD para skills de superpowers.
+
+**Donde va atrás:**
+
+| Falta | Quién lo hace | Ítem |
+|---|---|---|
+| Comparar contra no usar ningún agente (Δ) | `claude plugin eval`, skill-creator | B-038 |
+| Juez calibrado contra etiquetas humanas | evals-skills, superpowers, Anthropic | B-039 |
+| Veredicto indeterminado | superpowers (Quorum), Anthropic | B-040 |
+| Evals de disparo con casi-aciertos | skill-creator | B-041, B-043 |
+| Usar la herramienta oficial antes que construir | `claude plugin eval` | B-047 |
+| Tope de costo por corrida | `claude plugin eval` | B-044 |
+| Topes de tamaño por host | wshobson | B-042 |
+| Humo con CLI reales en CI | wshobson | B-046 |
+| Escenarios bajo presión con excusas registradas | superpowers | B-045 |
+
+**Lo que adoptamos sin código:**
+
+- **Una descripción de skill lista disparadores, no el flujo** (superpowers:
+  cuando la descripción resumía el proceso, el agente seguía el resumen y
+  salteaba el cuerpo). La regla 14 ya pide que el disparador nombre un
+  umbral; esto suma que la descripción no anticipe los pasos. Rige para toda
+  descripción que se reescriba, y B-041 la aplica.
+
+**Lo que decidimos no copiar, y por qué:**
+
+- **Un agente por stack.** Choca con la regla 5. Lo que ellos reparten en
+  decenas de agentes, acá lo cubre una skill que cambia según el proyecto.
+- **Cadenas fijas de orquestación.** Son predecibles, pero pasan por todos los
+  pasos aunque la tarea necesite dos, y delegar costó ~4× la única vez que se midió.
+- **`model:` por agente.** B-036 midió que la calidad no lo necesita. wshobson
+  lo usa por COSTO (haiku para trabajo mecánico), y los agentes de este
+  catálogo no hacen trabajo mecánico. Ojo con el alcance: B-036 resolvió UN
+  caso, no midió todo el catálogo. Se reabre si el costo pasa a ser el motivo
+  o si aparece otro escenario que solo pasa con un modelo mayor.
+- **El flujo obligatorio de superpowers** (idear → planificar → ejecutar en
+  cada tarea). Choca con la escalera y con "saber cuándo no orquestar": la
+  ceremonia tiene que escalar con el tamaño del cambio, que es justamente la
+  idea de BMAD.
+- **Publicar como marketplace de Claude Code, por ahora.** Un agente que viene
+  dentro de un plugin pierde `hooks`, `mcpServers` y `permissionMode`
+  (*documentado*); el tier de acceso sobreviviría solo con `tools:`. B-028
+  sigue en espera.
+
+---
+
+## 4. Lo que medimos nosotros (2026-10-11)
 
 | Host | Agentes | Skills | Solo lectura | Sorpresas |
 |---|---|---|---|---|
@@ -147,7 +318,7 @@ Cómo se midió cada cosa, y cómo repetirlo, está en los comentarios de
 
 ---
 
-## 4. Consideraciones para el catálogo
+## 5. Consideraciones para el catálogo
 
 1. **Las skills son la capa portable; los agentes se traducen por host.** Es la
    arquitectura de `install.py` y la industria fue en la misma dirección. Una
@@ -159,7 +330,7 @@ Cómo se midió cada cosa, y cómo repetirlo, está en los comentarios de
    nombres de herramientas del binario de agy, y un `kiro-cli agent validate`
    que aprueba herramientas inventadas. Antes de escribir un renderer, se mide.
 3. **Lo medido tiene versión y fecha.** Ningún CI puede correr los hosts, así
-   que cada dato de la sección 3 puede dejar de ser cierto con una
+   que cada dato de la sección 4 puede dejar de ser cierto con una
    actualización. Las pruebas que no gastan consultas
    (`opencode debug skill`, buscar rutas en el binario de agy) son las primeras
    a repetir.
@@ -173,10 +344,24 @@ Cómo se midió cada cosa, y cómo repetirlo, está en los comentarios de
 6. **La distribución se está partiendo en dos.** Agent Plugins para casi todos
    los hosts, y el formato propio de Claude Code. Publicar el catálogo como
    plugin implica, por ahora, mantener los dos.
+7. **El instrumento también se mide.** El harness mide bien al agente, pero
+   nunca se midió a sí mismo. No sabemos cuánto acierta el juez frente a un
+   humano, ni cuántos escenarios pasarían igual sin ningún agente. Es la regla
+   17 aplicada al evaluador: sin esas dos cifras, un PASS dice menos de lo que
+   parece. Ver B-038 y B-039.
+8. **Un escenario que pasa sin agente no prueba al agente.** Mide al modelo
+   base. Puede seguir sirviendo como protección contra regresiones, pero tiene
+   que decirlo; no puede contarse como evidencia de que una regla del catálogo
+   funciona.
+9. **Copiar una práctica exige copiar su motivo.** Cada práctica de la
+   sección 3 responde a un problema de su proyecto: los topes de 8 KB, a
+   Codex; `model:` por agente, al costo; las cadenas fijas, a la falta de un
+   agente que rutee. Antes de adoptar una, se comprueba que el problema
+   también existe acá, y eso se mide igual que los datos de los hosts.
 
 ---
 
-## 5. Backlog
+## 6. Backlog
 
 El trabajo que sale de este relevamiento vive en [BACKLOG.es.md](BACKLOG.es.md),
 con un ID estable por ítem (`B-NNN`), su criterio de terminado y los commits
