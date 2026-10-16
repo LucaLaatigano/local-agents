@@ -266,7 +266,7 @@ vieja contra versión nueva.
 |---|---|---|---|---|
 | **opencode 1.18.11** | `~/.config/opencode/agents`, `.opencode/agents`. **No** lee `.agents/agents` | propia + `~/.claude/skills` + `~/.agents/skills` + `skill/` (legacy); por proyecto `.agents/skills` y `.claude/skills` | `permission` (documentado) | Con la misma skill en varias carpetas **elige una copia distinta en cada corrida** (32, 10 y 4 de 48 del proyecto en tres corridas idénticas) |
 | **Codex 0.144.5** | TOML en `~/.codex/agents`, `.codex/agents` | `~/.codex/skills`; `~/.agents/skills` (documentado) | `sandbox_mode = "read-only"` | El flag `--sandbox` pisa el modo de cada agente; `-c sandbox_mode=...` y `config.toml` no. `codex exec` espera stdin si no se cierra |
-| **Antigravity (agy 1.3.3)** | `~/.gemini/config/agents`, `.agents/agents`; con el mismo nombre **gana el del proyecto** | `~/.gemini/config/skills`, `.agents/skills` | allowlist `tools:` | La doc da `~/.gemini/antigravity-cli/skills/` para el CLI y **no se lee**. Sin `tools:` el agente recibe un set mínimo (sin escribir ni buscar). Un nombre de herramienta desconocido aborta el arranque. Un agente sin frontmatter se ignora: `--agent` usa el global de ese nombre si existe, o el agente principal, sin avisar |
+| **Antigravity (agy 1.3.3 / 1.3.6)** | `~/.gemini/config/agents`, `.agents/agents`; con el mismo nombre **gana el del proyecto**, y entre globales `~/.gemini/antigravity-cli/agents` pisa a `~/.gemini/config/agents` | `~/.gemini/config/skills`, `.agents/skills` | allowlist `tools:` | La doc da `~/.gemini/antigravity-cli/skills/` para el CLI y **no se lee**, pero `~/.gemini/antigravity-cli/agents/` **sí se lee** y pisa en silencio a `~/.gemini/config/agents/`. Sin `tools:` el agente recibe un set mínimo (sin escribir ni buscar). Un nombre de herramienta desconocido aborta el arranque. Un agente sin frontmatter se ignora: `--agent` usa el global de ese nombre si existe, o el agente principal, sin avisar |
 | **Claude Code 2.1.296** | `~/.claude/agents`, `.claude/agents` | `~/.claude/skills`, `.claude/skills`. **No** lee `~/.agents/skills` ni `.agents/skills` | allowlist `tools:` | Se puede medir gratis: el evento `init` de `claude -p --output-format stream-json --verbose` lista las skills cargadas antes de consultar al modelo. El comportamiento de los agentes lo prueba el harness |
 | **Kiro (kiro-cli 2.29.1)** | JSON en `~/.kiro/agents`, `.kiro/agents` | `~/.kiro/skills`, `.kiro/skills`, vía `resources` `skill://` (el `~` funciona también por proyecto) | lista `tools`, que se hace cumplir | **Lee solo la primera línea de la descripción de una skill**: con `description: >` la ve vacía, y la skill no se dispara nunca. `code` modifica archivos (AST rewrite) y `subagent` delega en un agente que escribe. `kiro-cli agent validate` acepta herramientas y campos inventados |
 
@@ -274,8 +274,12 @@ vieja contra versión nueva.
 
 - **Claude Code no lee `~/.agents/skills` ni `.agents/skills`**: el aviso de
   `shadowing` no lo incluye (2.1.296; se mide gratis con el evento `init`).
-- **En agy gana el agente del proyecto** sobre el global del mismo nombre, y uno
-  sin frontmatter se ignora y se usa el global (1.3.3).
+- **En agy gana el agente del proyecto** sobre el global del mismo nombre, uno
+  sin frontmatter se ignora y se usa el global (1.3.3), y una copia vieja en
+  `~/.gemini/antigravity-cli/agents/` pisa en silencio a
+  `~/.gemini/config/agents/` (1.3.6; si era previa a B-002 y no tenía `tools:`,
+  deja a un agente `access: full` con el set mínimo de lectura; `install.py` la
+  retira al instalar o refrescar).
 - **Los cuatro hosts siguen un enlace simbólico** a una skill de proyecto
   (opencode, Claude Code, agy, Codex). Ver B-029.
 - **El orden de los CORE no cambia el comportamiento observable**: `devops` con

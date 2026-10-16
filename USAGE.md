@@ -49,7 +49,9 @@ Load the skills it references when their triggers fire.
   write it focusing on the trigger, not marketing).
 - Optional: `tools:` to restrict tools and `model:` to pin a model.
   The installer writes `tools: Read, Grep, Glob, WebFetch, WebSearch, Agent`
-  for catalog agents with `access: read`; `full` access agents inherit everything.
+  (and omits `memory:`, which would re-add `Edit` and `Write`) for catalog
+  agents with `access: read`; `full` access agents get `memory: user` and
+  inherit every tool.
 - Invoked explicitly ("use the architect agent") or Claude delegates automatically
   when the task matches the description.
 
@@ -277,12 +279,16 @@ Agent Skills on demand. Globally both live under `~/.gemini/config/` (shared
 with the Antigravity IDE): subagents in `agents/`, skills in `skills/`. Per
 project, both live under `.agents/`. Sources: antigravity.google/docs/subagents
 and /docs/skills — except the CLI skills path, where the docs say
-`~/.gemini/antigravity-cli/skills/` and agy 1.3.3 does not read it (measured).
+`~/.gemini/antigravity-cli/skills/` and agy 1.3.3 does not read it, while
+`~/.gemini/antigravity-cli/agents/` IS still read by the CLI and silently
+overrides `~/.gemini/config/agents/` (measured on agy 1.3.6).
 
 > If you want the full suite, `./install.py --all --tool antigravity` does this
 > automatically: bodies to `~/.gemini/config/agents/`, skills to
 > `~/.gemini/config/skills/`. No roster: Antigravity has named
-> subagents, so every body is reachable on its own.
+> subagents, so every body is reachable on its own. An older catalog install in
+> `~/.gemini/antigravity-cli/` is retired on the way so its agents cannot shadow
+> `~/.gemini/config/agents/`.
 
 ### Global (available in all projects)
 

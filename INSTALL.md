@@ -148,7 +148,10 @@ stays, because it still serves it.
 
 Antigravity keeps agents and skills globally under `~/.gemini/config/`, shared
 with the IDE — not under `~/.gemini/antigravity-cli/skills/`, which its docs give
-for the CLI but agy 1.3.3 does not read (measured). Per project both go under
+for the CLI but agy 1.3.3 does not read (measured). Because the CLI still reads
+`~/.gemini/antigravity-cli/agents/` and lets those files shadow
+`~/.gemini/config/agents/`, the installer retires any older catalog install left
+under `~/.gemini/antigravity-cli/` on the way. Per project both go under
 `.agents/`. That is the same
 directory `--tool shared --project` writes to, and the two write the same agent
 paths in different formats: Antigravity needs frontmatter, the shared bodies

@@ -61,6 +61,10 @@ CODEX_ROOT = env_dir("CODEX_HOME", HOME / ".codex")
 # read it — `~/.gemini/config/skills/` is the only skills path in the binary,
 # and a skill placed there is the one it sees.
 AGY_ROOT = HOME / ".gemini/config"
+# Pre-B-005 installs landed in `~/.gemini/antigravity-cli/`, and Antigravity CLI
+# still reads `~/.gemini/antigravity-cli/agents/` — letting stale copies there
+# silently shadow `~/.gemini/config/agents/` (measured on agy 1.3.6).
+AGY_LEGACY_ROOT = HOME / ".gemini/antigravity-cli"
 
 
 # --------------------------------------------------------------------------- #
@@ -820,6 +824,7 @@ def install_agent(agent: Agent, tool: Tool, policy: str, interactive: bool,
         write_roster(tool, agents, [final], dry_run)
     if roster:
         retire_roster_install(tool, agents, dry_run)
+        retire_legacy_agy_install(tool, agents, skills_by_name, dry_run)
 
 
 ROSTER_BODY_HEAD = "# `{name}` agent\n"
@@ -861,6 +866,56 @@ def retire_roster_install(tool: Tool, agents: dict, dry_run: bool):
             roster.write_text(rest + "\n", encoding="utf-8")
         else:
             roster.unlink()
+
+
+def retire_legacy_agy_install(tool: Tool, agents: dict, skills_by_name: dict,
+                              dry_run: bool):
+    """Antigravity used to be installed under ~/.gemini/antigravity-cli/ before
+    B-005 moved AGY_ROOT to ~/.gemini/config/. Antigravity CLI still reads
+    ~/.gemini/antigravity-cli/agents/ and lets those files silently shadow
+    ~/.gemini/config/agents/ (measured on agy 1.3.6) — so a pre-B-002 copy
+    there (without `tools:`) overrides the current install and drops full-access
+    agents to the minimal read-only toolset. Remove only what the catalog wrote:
+    catalog agent files, catalog skill dirs, the old roster block, and the stamp."""
+    if tool.key != "antigravity" or tool.config_root != AGY_ROOT:
+        return
+    a_dir = AGY_LEGACY_ROOT / "agents"
+    if a_dir.is_dir():
+        for name in sorted(agents):
+            old = a_dir / f"{name}.md"
+            if old.is_file():
+                print(f"    retire → {old} (legacy antigravity-cli agent)")
+                if not dry_run:
+                    old.unlink()
+        if not dry_run and not any(a_dir.iterdir()):
+            a_dir.rmdir()
+    s_dir = AGY_LEGACY_ROOT / "skills"
+    if s_dir.is_dir():
+        for name in sorted(skills_by_name):
+            old = s_dir / name
+            if old.is_dir():
+                print(f"    retire → {old} (legacy antigravity-cli skill)")
+                if not dry_run:
+                    shutil.rmtree(old)
+        if not dry_run and not any(s_dir.iterdir()):
+            s_dir.rmdir()
+    roster = AGY_LEGACY_ROOT / "AGENTS.md"
+    if roster.is_file():
+        text = roster.read_text(encoding="utf-8")
+        if ROSTER_BEGIN in text and ROSTER_END in text:
+            rest = (text[:text.index(ROSTER_BEGIN)]
+                    + text[text.index(ROSTER_END) + len(ROSTER_END):]).strip()
+            print(f"    retire → roster block in {roster}")
+            if not dry_run:
+                if rest:
+                    roster.write_text(rest + "\n", encoding="utf-8")
+                else:
+                    roster.unlink()
+    stamp = AGY_LEGACY_ROOT / MANIFEST
+    if stamp.is_file():
+        print(f"    retire → {stamp} (legacy antigravity-cli stamp)")
+        if not dry_run:
+            stamp.unlink()
 
 
 def short_description(agent: Agent) -> str:
@@ -1058,6 +1113,7 @@ def install_suite(tool: Tool, policy: str, interactive: bool, dry_run: bool,
               "in AGENTS.md) —")
         write_roster(tool, agents, sorted(agents), dry_run)
     retire_roster_install(tool, agents, dry_run)
+    retire_legacy_agy_install(tool, agents, skills_by_name, dry_run)
 
     write_manifest(tool, catalog, dry_run)
 
@@ -1168,6 +1224,36 @@ def shadow_report(tool: Tool, skills_by_name: dict, project=None) -> list:
     return lines
 
 
+def legacy_agy_report(tool: Tool, agents: dict, skills_by_name: dict) -> list:
+    """Lines warning that ~/.gemini/antigravity-cli still holds a pre-B-005
+    catalog install whose agents shadow ~/.gemini/config/agents/."""
+    if tool.key != "antigravity" or tool.config_root != AGY_ROOT:
+        return []
+    a_dir = AGY_LEGACY_ROOT / "agents"
+    s_dir = AGY_LEGACY_ROOT / "skills"
+    old_agents = [n for n in sorted(agents) if (a_dir / f"{n}.md").is_file()]
+    old_skills = [n for n in sorted(skills_by_name) if (s_dir / n / "SKILL.md").is_file()]
+    roster = AGY_LEGACY_ROOT / "AGENTS.md"
+    has_roster = roster.is_file() and ROSTER_BEGIN in roster.read_text(encoding="utf-8")
+    has_stamp = (AGY_LEGACY_ROOT / MANIFEST).is_file()
+    if not (old_agents or old_skills or has_roster or has_stamp):
+        return []
+    parts = []
+    if old_agents:
+        parts.append(f"{len(old_agents)} stale agent(s) in {a_dir}")
+    if old_skills:
+        parts.append(f"{len(old_skills)} stale skill(s) in {s_dir}")
+    if has_roster:
+        parts.append(f"roster in {roster}")
+    if has_stamp:
+        parts.append(f"{MANIFEST} in {AGY_LEGACY_ROOT}")
+    return [
+        f"shadowing: legacy pre-B-005 install in {AGY_LEGACY_ROOT} "
+        f"({', '.join(parts)}) — agents there override {tool.agents_dir}:",
+        "  → ./install.py --all --tool antigravity --on-conflict overwrite",
+    ]
+
+
 def print_status(agents, skills_by_name, project=None, catalog=None):
     """What is actually installed in each tool, and whether it still matches the
     catalog. Answers the question `--list` cannot: not "what could I install"
@@ -1185,6 +1271,8 @@ def print_status(agents, skills_by_name, project=None, catalog=None):
         if not tool.config_root.exists():
             state = "not set up here" if project else "not detected"
             print(f"\n{tool.label}  ({tool.key})\n  {state} — {tool.config_root} missing")
+            for line in legacy_agy_report(tool, agents, skills_by_name):
+                print(f"    {line}")
             continue
         print(f"\n{tool.label}  ({tool.key})\n  {tool.config_root}")
 
@@ -1239,6 +1327,8 @@ def print_status(agents, skills_by_name, project=None, catalog=None):
         for label, items in (("stale", a_stale), ("missing", a_missing)):
             if items:
                 print(f"      {label}: {', '.join(items)}")
+        for line in legacy_agy_report(tool, agents, skills_by_name):
+            print(f"    {line}")
 
         if catalog:
             for line in provenance_line(tool, catalog, set(present) | set(a_present)):
@@ -1344,7 +1434,10 @@ def main():
         installed = []
         for t in TOOLS:
             here = project_tool(t, project) if project else t
-            if (here.config_root / MANIFEST).is_file() and not shared_dir_owner(here, agents):
+            has_stamp = (here.config_root / MANIFEST).is_file() or (
+                t.key == "antigravity" and not project and (AGY_LEGACY_ROOT / MANIFEST).is_file()
+            )
+            if has_stamp and not shared_dir_owner(here, agents):
                 installed.append(t)
         if not installed:
             sys.exit("--refresh: no tool here holds a catalog install (no "

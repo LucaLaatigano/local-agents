@@ -609,33 +609,63 @@ def check_installer(cat: Catalog):
                 errs.append(f"install.py {' '.join(args)} exited {proc.returncode}: "
                             f"{proc.stderr.strip()[-200:]}")
 
-        # Claude Code adds Edit and Write to any agent with `memory:`, with no
-        # limit to its memory dir (measured on 2.1.296), so a read-tier agent
-        # must be installed without it, and with exactly CLAUDE_READ_TOOLS.
+        # Every host must translate `access: read` vs `access: full` for all 15
+        # agents. Claude Code adds Edit and Write to any agent with `memory:`,
+        # with no limit to its memory dir (measured on 2.1.296), so a read-tier
+        # agent must be installed without it, and with CLAUDE_READ_TOOLS.
+        import json
         claude_dir = Path(home) / ".claude" / "agents"
-        for agent, text in cat.agents.items():
-            if not re.search(r"^access:\s*read\s*$", text, re.M):
-                continue
-            f = claude_dir / f"{agent}.md"
-            head = f.read_text(encoding="utf-8").split("\n---", 1)[0] if f.is_file() else ""
-            if re.search(r"^memory:", head, re.M):
-                errs.append(f"{agent}.md (Claude Code): a read-tier agent must not get "
-                            f"`memory:` — the host then adds Edit and Write")
-            if not re.search(r"^tools: ", head, re.M):
-                errs.append(f"{agent}.md (Claude Code): a read-tier agent needs a `tools:` allowlist")
-
-        # Codex agents are TOML, and `sandbox_mode = "read-only"` is the only
-        # enforcement of the read tier there (measured on codex-cli 0.144.5).
-        # CI pins Python 3.9, which has no TOML parser, so check the shape the
-        # renderer promises and leave parsing to the measured run.
+        opencode_dir = Path(home) / ".config" / "opencode" / "agents"
+        kiro_dir = Path(home) / ".kiro" / "agents"
         codex_dir = Path(home) / ".codex" / "agents"
+        agy_dir = Path(home) / ".gemini" / "config" / "agents"
+        shared_dir = Path(home) / ".agents" / "agents"
         for agent, text in cat.agents.items():
+            reads_only = bool(re.search(r"^access:\s*read\s*$", text, re.M))
+
+            f_claude = claude_dir / f"{agent}.md"
+            head = f_claude.read_text(encoding="utf-8").split("\n---", 1)[0] if f_claude.is_file() else ""
+            if reads_only:
+                if re.search(r"^memory:", head, re.M):
+                    errs.append(f"{agent}.md (Claude Code): a read-tier agent must not get "
+                                f"`memory:` — the host then adds Edit and Write")
+                if not re.search(r"^tools: ", head, re.M):
+                    errs.append(f"{agent}.md (Claude Code): a read-tier agent needs a `tools:` allowlist")
+            else:
+                if not re.search(r"^memory:", head, re.M) or re.search(r"^tools: ", head, re.M):
+                    errs.append(f"{agent}.md (Claude Code): a full-tier agent must get `memory:` and inherit all tools")
+
+            f_oc = opencode_dir / f"{agent}.md"
+            oc_head = f_oc.read_text(encoding="utf-8").split("\n---", 1)[0] if f_oc.is_file() else ""
+            if ("edit: deny" in oc_head and "bash: deny" in oc_head) != reads_only:
+                errs.append(f"{agent}.md (opencode): edit/bash deny must appear iff access: read")
+
+            f_kiro = kiro_dir / f"{agent}.json"
+            if f_kiro.is_file():
+                kobj = json.loads(f_kiro.read_text(encoding="utf-8"))
+                if (kobj.get("tools") == ["*"]) == reads_only:
+                    errs.append(f"{agent}.json (Kiro): full tier must get ['*'] and read tier an allowlist")
+
+            f_agy = agy_dir / f"{agent}.md"
+            agy_head = f_agy.read_text(encoding="utf-8").split("\n---", 1)[0] if f_agy.is_file() else ""
+            if not re.search(r"^tools: \[", agy_head, re.M):
+                errs.append(f"{agent}.md (Antigravity): every agent needs an explicit `tools:` list")
+            elif ("write_to_file" in agy_head and "run_command" in agy_head) == reads_only:
+                errs.append(f"{agent}.md (Antigravity): write/shell tools must appear iff access: full")
+
+            f_shared = shared_dir / f"{agent}.md"
+            if f_shared.is_file() and ("Access: read-only." in f_shared.read_text(encoding="utf-8")) != reads_only:
+                errs.append(f"{agent}.md (shared): read-only lead note must appear iff access: read")
+
+            # Codex agents are TOML, and `sandbox_mode = "read-only"` is the only
+            # enforcement of the read tier there (measured on codex-cli 0.144.5).
+            # CI pins Python 3.9, which has no TOML parser, so check the shape the
+            # renderer promises and leave parsing to the measured run.
             f = codex_dir / f"{agent}.toml"
             if not f.is_file():
                 errs.append(f"install.py --tool codex wrote no {f.name}")
                 continue
             toml = f.read_text(encoding="utf-8")
-            reads_only = bool(re.search(r"^access:\s*read\s*$", text, re.M))
             if not toml.startswith(f'name = "{agent}"\n'):
                 errs.append(f"{f.name}: must open with name = \"{agent}\"")
             if 'description = "' not in toml:
@@ -652,6 +682,9 @@ def check_installer(cat: Catalog):
         # A host that reads several skill dirs may load ANY copy of a skill, so
         # one stale copy must surface in --status under that host, and
         # --refresh must clear it. opencode reads ~/.agents/skills (measured).
+        # Likewise, a legacy pre-B-005 Antigravity install in
+        # ~/.gemini/antigravity-cli/ must surface in --status and be retired by
+        # installing or refreshing antigravity (without touching foreign files).
         def run(*args):
             return subprocess.run([sys.executable, str(cat.root / "install.py"), *args],
                                   capture_output=True, text=True, env=env,
@@ -659,17 +692,39 @@ def check_installer(cat: Catalog):
         stale_copy = Path(home) / ".agents" / "skills" / "tradeoffs" / "SKILL.md"
         stale_copy.write_text(stale_copy.read_text(encoding="utf-8") + "\ndrift\n",
                               encoding="utf-8")
-        status = run("--status").stdout
+        legacy_agy = Path(home) / ".gemini" / "antigravity-cli"
+        (legacy_agy / "agents").mkdir(parents=True, exist_ok=True)
+        (legacy_agy / "agents" / "senior-dev.md").write_text(
+            "---\nname: senior-dev\nmodel: inherit\n---\nold\n", encoding="utf-8")
+        (legacy_agy / "agents" / "foreign.md").write_text("user agent\n", encoding="utf-8")
+        (legacy_agy / "skills" / "tradeoffs").mkdir(parents=True, exist_ok=True)
+        (legacy_agy / "skills" / "tradeoffs" / "SKILL.md").write_text("old\n", encoding="utf-8")
+        (legacy_agy / "AGENTS.md").write_text(
+            "<!-- BEGIN:local-agents -->\nold\n<!-- END:local-agents -->\n", encoding="utf-8")
+        (legacy_agy / ".local-agents.json").write_text("{}\n", encoding="utf-8")
+
+        status = run("--status").stdout.replace("\\", "/")
         opencode_block = status.split("opencode  (opencode)")[-1].split("\nKiro")[0]
         if "stale in" not in opencode_block or ".agents/skills" not in opencode_block:
             errs.append("install.py --status did not warn that opencode can load a "
                         "stale copy of a skill from ~/.agents/skills")
+        agy_block = status.split("Antigravity CLI  (antigravity)")[-1].split("\nShared")[0]
+        if "shadowing:" not in agy_block or "antigravity-cli" not in agy_block:
+            errs.append("install.py --status did not warn that ~/.gemini/antigravity-cli "
+                        "holds legacy agents shadowing ~/.gemini/config/agents")
         proc = run("--refresh")
         if proc.returncode != 0:
             errs.append(f"install.py --refresh exited {proc.returncode}: "
                         f"{proc.stderr.strip()[-200:]}")
         elif "shadowing" in run("--status").stdout:
-            errs.append("install.py --refresh left a stale skill copy behind")
+            errs.append("install.py --refresh left a stale skill or legacy antigravity-cli copy behind")
+        if (legacy_agy / "agents" / "senior-dev.md").exists() or \
+                (legacy_agy / "skills" / "tradeoffs").exists() or \
+                (legacy_agy / "AGENTS.md").exists() or \
+                (legacy_agy / ".local-agents.json").exists():
+            errs.append("install.py did not retire legacy catalog files from ~/.gemini/antigravity-cli")
+        if not (legacy_agy / "agents" / "foreign.md").is_file():
+            errs.append("install.py removed a foreign agent from ~/.gemini/antigravity-cli/agents")
 
         # `shared` and `antigravity` share `.agents/` per project and write the
         # same agent paths in different formats; the installer must refuse the
@@ -863,7 +918,7 @@ def check_install_stamp(cat: Catalog):
     errs = []
     with tempfile.TemporaryDirectory() as tmp:
         clone = Path(tmp) / "catalog"
-        subprocess.run(["git", "clone", "-q", "--local", str(cat.root), str(clone)],
+        subprocess.run(["git", "clone", "-q", "--local", "--no-hardlinks", str(cat.root), str(clone)],
                        check=True, capture_output=True)
         agent = sorted(cat.agents)[0]
         cases = [
